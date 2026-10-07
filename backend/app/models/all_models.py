@@ -600,6 +600,9 @@ class GeotechnicalReport(Base):
     overburden_volume_cum = Column(Float, default=3400.0)
     estimated_total_days = Column(Integer, default=45)
 
+    report_code = Column(String(100), nullable=True, index=True) # e.g. "GT-1001", "GT-2026-0001"
+    tenant_id = Column(String(100), default="default", index=True) # Multi-tenant isolation
+
     # Structured analysis payloads
     strata_layers_json = Column(Text, nullable=True)
     recommended_machinery_json = Column(Text, nullable=True)
@@ -614,3 +617,53 @@ class GeotechnicalReport(Base):
     updated_at = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
 
     project = relationship("Project", back_populates="geotechnical_reports")
+
+
+class GeotechAPIKey(Base):
+    """
+    Cryptographically hashed API Key registry for external construction systems
+    accessing the Geotechnical Intelligence Platform.
+    """
+    __tablename__ = "geotech_api_keys"
+
+    id = Column(Integer, primary_key=True, index=True)
+    key_id = Column(String(100), unique=True, nullable=False, index=True)  # Public identifier (e.g. key_a1b2c3d4)
+    client_name = Column(String(255), nullable=False)                     # e.g. "Construction ERP"
+    tenant_id = Column(String(100), nullable=False, index=True)           # Multi-tenant boundary
+    key_prefix = Column(String(50), nullable=False)                       # e.g. "geo_live_a1b2...****"
+    key_hash = Column(String(255), unique=True, nullable=False, index=True) # SHA-256 digest of plaintext key
+    environment = Column(String(50), default="production")                # production, staging, development
+    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+    expires_at = Column(DateTime, nullable=True)
+    status = Column(String(50), default="active", index=True)             # active, revoked, expired
+    permissions_json = Column(Text, nullable=False, default="[]")         # JSON list of scopes
+    rate_limit_per_minute = Column(Integer, default=60)
+    last_used_at = Column(DateTime, nullable=True)
+    created_by = Column(String(255), nullable=True)
+    description = Column(Text, nullable=True)
+
+    audit_logs = relationship("GeotechAPIAuditLog", back_populates="api_key_rel", cascade="all, delete-orphan")
+
+
+class GeotechAPIAuditLog(Base):
+    """
+    Granular audit log of all external Geotechnical Intelligence API invocations.
+    """
+    __tablename__ = "geotech_api_audit_logs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    api_key_id = Column(Integer, ForeignKey("geotech_api_keys.id", ondelete="CASCADE"), nullable=True, index=True)
+    client_name = Column(String(255), nullable=True)
+    tenant_id = Column(String(100), nullable=True, index=True)
+    endpoint = Column(String(255), nullable=False)
+    method = Column(String(20), nullable=False)
+    status_code = Column(Integer, nullable=False)
+    ip_address = Column(String(100), nullable=True)
+    user_agent = Column(String(255), nullable=True)
+    response_time_ms = Column(Float, nullable=True)
+    request_id = Column(String(100), nullable=True)
+    error_message = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.datetime.utcnow, index=True)
+
+    api_key_rel = relationship("GeotechAPIKey", back_populates="audit_logs")
+

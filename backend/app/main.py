@@ -50,17 +50,21 @@ try:
             conn.execute(text("ALTER TABLE geotechnical_reports ADD COLUMN summary_json TEXT"))
         if "intelligence_data_json" not in geo_cols:
             conn.execute(text("ALTER TABLE geotechnical_reports ADD COLUMN intelligence_data_json TEXT"))
+        if "report_code" not in geo_cols:
+            conn.execute(text("ALTER TABLE geotechnical_reports ADD COLUMN report_code VARCHAR(100)"))
+        if "tenant_id" not in geo_cols:
+            conn.execute(text("ALTER TABLE geotechnical_reports ADD COLUMN tenant_id VARCHAR(100) DEFAULT 'default'"))
         conn.commit()
 except Exception as mig_err:
     print(f"Migration note: {mig_err}")
 
 app = FastAPI(
     title="Construction Intelligence Platform API",
-    description="Standalone AI/ML Construction Planning, Monitoring & Prediction System",
+    description="Enterprise Autonomous AI/ML Construction Planning, CPM Scheduling & Geotechnical Intelligence Engine",
     version="1.0.0"
 )
 
-# Enable CORS for frontend Vite dev server & production
+# Enable CORS for frontend Vite dev server & external systems
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -69,7 +73,41 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
+@app.middleware("http")
+async def enforce_external_api_key_boundary(request, call_next):
+    """
+    Guarantees strict module isolation:
+    External API keys (geo_live_* / geo_test_*) are strictly permitted ONLY
+    under /api/v1/geotechnical/. Any attempt to access internal modules
+    (/civil, /electrical, /plumbing, /boq, /financial, /admin, /users, etc.)
+    is immediately denied with HTTP 403 Forbidden.
+    """
+    auth_header = request.headers.get("authorization", "")
+    api_key_header = request.headers.get("x-api-key", "")
+    is_external_key = (
+        "geo_live_" in auth_header or "geo_test_" in auth_header
+        or "geo_live_" in api_key_header or "geo_test_" in api_key_header
+    )
+
+    if is_external_key:
+        path = request.url.path
+        if not path.startswith("/api/v1/geotechnical") and path not in ["/docs", "/openapi.json"]:
+            from fastapi.responses import JSONResponse
+            return JSONResponse(
+                status_code=403,
+                content={
+                    "error": "Forbidden",
+                    "detail": "Geotechnical API keys are strictly confined to /api/v1/geotechnical/ endpoints and cannot access internal platform modules (/civil, /electrical, /plumbing, /boq, /financial, /admin, /users)."
+                }
+            )
+
+    return await call_next(request)
+
+
 # Include all API Routers
+from backend.app.api import geotechnical_external_v1
+
 app.include_router(auth.router)
 app.include_router(projects.router)
 app.include_router(activities.router)
@@ -85,6 +123,8 @@ app.include_router(reports.router)
 app.include_router(audit.router)
 app.include_router(environmental.router)
 app.include_router(geotechnical.router)
+app.include_router(geotechnical_external_v1.router)
+
 
 @app.get("/")
 def health_check():

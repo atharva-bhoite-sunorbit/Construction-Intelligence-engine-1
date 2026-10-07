@@ -21,7 +21,12 @@ from backend.app.models.all_models import (
     ActivityTemplate,
     ConstructionRule,
     ModelRegistry,
-    AuditLog
+    AuditLog,
+    SiteEnvironmentalLog,
+    SiteValidationRecord,
+    GeotechnicalReport,
+    GeotechAPIKey,
+    GeotechAPIAuditLog
 )
 
 __all__ = [
@@ -48,4 +53,10 @@ __all__ = [
     "ConstructionRule",
     "ModelRegistry",
     "AuditLog",
+    "SiteEnvironmentalLog",
+    "SiteValidationRecord",
+    "GeotechnicalReport",
+    "GeotechAPIKey",
+    "GeotechAPIAuditLog",
 ]
+

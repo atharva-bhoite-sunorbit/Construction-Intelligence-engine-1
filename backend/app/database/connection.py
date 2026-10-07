@@ -30,6 +30,10 @@ if DATABASE_URL.startswith("sqlite"):
                 cursor.execute("ALTER TABLE geotechnical_reports ADD COLUMN analysis_params_json TEXT")
             if cols and "summary_json" not in cols:
                 cursor.execute("ALTER TABLE geotechnical_reports ADD COLUMN summary_json TEXT")
+            if cols and "report_code" not in cols:
+                cursor.execute("ALTER TABLE geotechnical_reports ADD COLUMN report_code VARCHAR(100)")
+            if cols and "tenant_id" not in cols:
+                cursor.execute("ALTER TABLE geotechnical_reports ADD COLUMN tenant_id VARCHAR(100) DEFAULT 'default'")
         except Exception:
             pass
         cursor.close()
