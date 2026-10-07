@@ -1,9 +1,10 @@
-import React, { useState, useId } from 'react';
+import React, { useState, useId, useEffect } from 'react';
 import {
   Layers, Pickaxe, Drill, Hammer, Truck, Waves,
   Sparkles, Eye, Download, Info, Rotate3d, Maximize2,
   Minimize2, ChevronRight, ShieldAlert, CheckCircle2,
-  Compass, Ruler, Activity as ActivityIcon, Sliders, ExternalLink
+  Compass, Ruler, Activity as ActivityIcon, Sliders, ExternalLink,
+  Columns, Box, Grid3X3, ArrowUpDown
 } from 'lucide-react';
 import { StrataLayer, GeotechnicalReport } from '../types';
 import { STRATA_THEMES, getStrataTheme, getExcavabilityBadge, VEHICLE_IMAGE_MAP } from '../pages/GeotechnicalReportPage';
@@ -19,9 +20,16 @@ export interface PavementLayerDefinition {
   materialKey: string;
   fillLeft: string;
   fillRight: string;
+  fillTop?: string;
+  strokeColor?: string;
+  top_m: number;
+  bottom_m: number;
+  thickness_m: number;
   patternType: 'asphalt' | 'binder' | 'base_aggregate' | 'subbase_gravel' | 'geotextile' | 'compacted_subgrade' | 'timber_bedding' | 'bedrock_boulders';
   excavabilityClassNum: number;
   ucsMpa?: number;
+  rqdPct?: number;
+  sptN?: number;
   cbrPct?: number;
   bulkingFactor: number;
   description: string;
@@ -34,7 +42,223 @@ export interface PavementLayerDefinition {
   };
 }
 
-// 8 Engineering layers matching the user's reference cutaway image exactly
+export interface Strata3DShading {
+  leftTone: string;
+  leftToneEnd: string;
+  rightTone: string;
+  topTone: string;
+  stroke: string;
+  textBadge: string;
+  patternType: 'asphalt' | 'binder' | 'base_aggregate' | 'subbase_gravel' | 'geotextile' | 'compacted_subgrade' | 'timber_bedding' | 'bedrock_boulders';
+}
+
+export const getStrata3DShading = (materialKey?: string, isRock?: boolean, ucs?: number): Strata3DShading => {
+  const k = (materialKey || '').toLowerCase();
+
+  if (k.includes('topsoil')) {
+    return {
+      leftTone: '#10b981',
+      leftToneEnd: '#059669',
+      rightTone: '#064e3b',
+      topTone: '#34d399',
+      stroke: '#6ee7b7',
+      textBadge: 'text-emerald-300',
+      patternType: 'asphalt',
+    };
+  }
+  if (k.includes('fill') || k.includes('debris') || k.includes('made')) {
+    return {
+      leftTone: '#71717a',
+      leftToneEnd: '#52525b',
+      rightTone: '#27272a',
+      topTone: '#a1a1aa',
+      stroke: '#d4d4d8',
+      textBadge: 'text-zinc-300',
+      patternType: 'asphalt',
+    };
+  }
+  if (k.includes('sandstone')) {
+    return {
+      leftTone: '#f59e0b',
+      leftToneEnd: '#d97706',
+      rightTone: '#78350f',
+      topTone: '#fbbf24',
+      stroke: '#fde68a',
+      textBadge: 'text-amber-200',
+      patternType: 'base_aggregate',
+    };
+  }
+  if (k.includes('sand') || k.includes('silt')) {
+    return {
+      leftTone: '#eab308',
+      leftToneEnd: '#ca8a04',
+      rightTone: '#713f12',
+      topTone: '#fde047',
+      stroke: '#fef08a',
+      textBadge: 'text-yellow-200',
+      patternType: 'binder',
+    };
+  }
+  if (k.includes('black_cotton')) {
+    return {
+      leftTone: '#44403c',
+      leftToneEnd: '#292524',
+      rightTone: '#1c1917',
+      topTone: '#78716c',
+      stroke: '#a8a29e',
+      textBadge: 'text-stone-300',
+      patternType: 'compacted_subgrade',
+    };
+  }
+  if (k.includes('clay')) {
+    return {
+      leftTone: '#b45309',
+      leftToneEnd: '#9a3412',
+      rightTone: '#431407',
+      topTone: '#d97706',
+      stroke: '#fed7aa',
+      textBadge: 'text-orange-200',
+      patternType: 'compacted_subgrade',
+    };
+  }
+  if (k.includes('murrum')) {
+    return {
+      leftTone: '#ea580c',
+      leftToneEnd: '#c2410c',
+      rightTone: '#7c2d12',
+      topTone: '#f97316',
+      stroke: '#fdba74',
+      textBadge: 'text-orange-200',
+      patternType: 'subbase_gravel',
+    };
+  }
+  if (k.includes('laterite')) {
+    return {
+      leftTone: '#dc2626',
+      leftToneEnd: '#b91c1c',
+      rightTone: '#7f1d1d',
+      topTone: '#ef4444',
+      stroke: '#fca5a5',
+      textBadge: 'text-red-200',
+      patternType: 'subbase_gravel',
+    };
+  }
+  if (k.includes('gravel') || k.includes('pebble')) {
+    return {
+      leftTone: '#64748b',
+      leftToneEnd: '#475569',
+      rightTone: '#1e293b',
+      topTone: '#94a3b8',
+      stroke: '#cbd5e1',
+      textBadge: 'text-slate-300',
+      patternType: 'subbase_gravel',
+    };
+  }
+  if (k.includes('weathered') || k.includes('sdr')) {
+    return {
+      leftTone: '#ca8a04',
+      leftToneEnd: '#a16207',
+      rightTone: '#451a03',
+      topTone: '#eab308',
+      stroke: '#fde047',
+      textBadge: 'text-yellow-300',
+      patternType: 'base_aggregate',
+    };
+  }
+  if (k.includes('basalt')) {
+    return {
+      leftTone: '#0891b2',
+      leftToneEnd: '#0e7490',
+      rightTone: '#083344',
+      topTone: '#22d3ee',
+      stroke: '#67e8f9',
+      textBadge: 'text-cyan-300',
+      patternType: 'bedrock_boulders',
+    };
+  }
+  if (k.includes('granite')) {
+    return {
+      leftTone: '#9333ea',
+      leftToneEnd: '#7e22ce',
+      rightTone: '#3b0764',
+      topTone: '#c084fc',
+      stroke: '#e9d5ff',
+      textBadge: 'text-purple-300',
+      patternType: 'bedrock_boulders',
+    };
+  }
+  if (k.includes('gneiss')) {
+    return {
+      leftTone: '#4f46e5',
+      leftToneEnd: '#4338ca',
+      rightTone: '#1e1b4b',
+      topTone: '#818cf8',
+      stroke: '#c7d2fe',
+      textBadge: 'text-indigo-300',
+      patternType: 'bedrock_boulders',
+    };
+  }
+  if (k.includes('quartzite')) {
+    return {
+      leftTone: '#06b6d4',
+      leftToneEnd: '#0891b2',
+      rightTone: '#164e63',
+      topTone: '#67e8f9',
+      stroke: '#a5f3fc',
+      textBadge: 'text-cyan-300',
+      patternType: 'bedrock_boulders',
+    };
+  }
+  if (k.includes('boulder')) {
+    return {
+      leftTone: '#78716c',
+      leftToneEnd: '#57534e',
+      rightTone: '#292524',
+      topTone: '#a8a29e',
+      stroke: '#e7e5e4',
+      textBadge: 'text-stone-300',
+      patternType: 'subbase_gravel',
+    };
+  }
+  if (isRock || (ucs && ucs > 25)) {
+    return {
+      leftTone: '#2563eb',
+      leftToneEnd: '#1d4ed8',
+      rightTone: '#172554',
+      topTone: '#60a5fa',
+      stroke: '#93c5fd',
+      textBadge: 'text-blue-300',
+      patternType: 'bedrock_boulders',
+    };
+  }
+  return {
+    leftTone: '#854d0e',
+    leftToneEnd: '#713f12',
+    rightTone: '#451a03',
+    topTone: '#a16207',
+    stroke: '#fef08a',
+    textBadge: 'text-amber-300',
+    patternType: 'compacted_subgrade',
+  };
+};
+
+const getRecommendedMachineryForClass = (classNum: number): string[] => {
+  switch (classNum) {
+    case 1:
+      return ['backhoe', 'excavator_20t', 'tipper'];
+    case 2:
+      return ['excavator_20t', 'backhoe', 'tipper'];
+    case 3:
+      return ['excavator_ripper', 'excavator_20t', 'breaker', 'tipper'];
+    case 4:
+      return ['breaker', 'excavator_rock', 'compressor', 'tipper'];
+    case 5:
+    default:
+      return ['drill_rig', 'heavy_breaker', 'compressor', 'excavator_rock', 'tipper'];
+  }
+};
+
+// 8 Engineering layers for optional reference highway stack
 export const REFERENCE_HIGHWAY_LAYERS: PavementLayerDefinition[] = [
   {
     id: 'layer-wearing',
@@ -47,6 +271,9 @@ export const REFERENCE_HIGHWAY_LAYERS: PavementLayerDefinition[] = [
     materialKey: 'sand',
     fillLeft: '#1e293b',
     fillRight: '#0f172a',
+    top_m: 0.0,
+    bottom_m: 0.05,
+    thickness_m: 0.05,
     patternType: 'asphalt',
     excavabilityClassNum: 1,
     ucsMpa: 4.5,
@@ -72,6 +299,9 @@ export const REFERENCE_HIGHWAY_LAYERS: PavementLayerDefinition[] = [
     materialKey: 'fill',
     fillLeft: '#78350f',
     fillRight: '#572205',
+    top_m: 0.05,
+    bottom_m: 0.13,
+    thickness_m: 0.08,
     patternType: 'binder',
     excavabilityClassNum: 2,
     ucsMpa: 8.0,
@@ -97,6 +327,9 @@ export const REFERENCE_HIGHWAY_LAYERS: PavementLayerDefinition[] = [
     materialKey: 'gravel',
     fillLeft: '#64748b',
     fillRight: '#475569',
+    top_m: 0.13,
+    bottom_m: 0.38,
+    thickness_m: 0.25,
     patternType: 'base_aggregate',
     excavabilityClassNum: 2,
     cbrPct: 85,
@@ -121,6 +354,9 @@ export const REFERENCE_HIGHWAY_LAYERS: PavementLayerDefinition[] = [
     materialKey: 'sandstone',
     fillLeft: '#a8a29e',
     fillRight: '#78716c',
+    top_m: 0.38,
+    bottom_m: 0.68,
+    thickness_m: 0.30,
     patternType: 'subbase_gravel',
     excavabilityClassNum: 2,
     cbrPct: 35,
@@ -145,6 +381,9 @@ export const REFERENCE_HIGHWAY_LAYERS: PavementLayerDefinition[] = [
     materialKey: 'quartzite',
     fillLeft: '#0284c7',
     fillRight: '#0369a1',
+    top_m: 0.68,
+    bottom_m: 0.74,
+    thickness_m: 0.06,
     patternType: 'geotextile',
     excavabilityClassNum: 1,
     cbrPct: 150,
@@ -169,6 +408,9 @@ export const REFERENCE_HIGHWAY_LAYERS: PavementLayerDefinition[] = [
     materialKey: 'clay',
     fillLeft: '#451a03',
     fillRight: '#290e02',
+    top_m: 0.74,
+    bottom_m: 1.19,
+    thickness_m: 0.45,
     patternType: 'compacted_subgrade',
     excavabilityClassNum: 2,
     cbrPct: 10,
@@ -193,6 +435,9 @@ export const REFERENCE_HIGHWAY_LAYERS: PavementLayerDefinition[] = [
     materialKey: 'murrum',
     fillLeft: '#b45309',
     fillRight: '#78350f',
+    top_m: 1.19,
+    bottom_m: 1.54,
+    thickness_m: 0.35,
     patternType: 'timber_bedding',
     excavabilityClassNum: 3,
     cbrPct: 40,
@@ -217,6 +462,9 @@ export const REFERENCE_HIGHWAY_LAYERS: PavementLayerDefinition[] = [
     materialKey: 'basalt',
     fillLeft: '#1e293b',
     fillRight: '#090d16',
+    top_m: 1.54,
+    bottom_m: 2.34,
+    thickness_m: 0.80,
     patternType: 'bedrock_boulders',
     excavabilityClassNum: 5,
     ucsMpa: 125.0,
@@ -233,115 +481,148 @@ export const REFERENCE_HIGHWAY_LAYERS: PavementLayerDefinition[] = [
   },
 ];
 
-interface IsometricGeologicalCubeProps {
+export interface IsometricGeologicalCubeProps {
   report?: GeotechnicalReport | null;
   activeProjectName?: string;
+  selectedLayerIndex?: number | null;
+  onSelectLayerIndex?: (index: number) => void;
   onNavigateToFleet?: () => void;
+  onNavigateToStrataTab?: () => void;
 }
 
 export const IsometricGeologicalCube: React.FC<IsometricGeologicalCubeProps> = ({
   report,
   activeProjectName,
+  selectedLayerIndex,
+  onSelectLayerIndex,
   onNavigateToFleet,
+  onNavigateToStrataTab,
 }) => {
   const uid = useId();
-  // View mode: 'pavement' (matching reference photo) or 'borehole' (dynamic from loaded report)
-  const [viewMode, setViewMode] = useState<'pavement' | 'borehole'>('pavement');
-  // Exploded spacing: 0 to 45px vertical separation
+
+  // Dynamic borehole layers derived directly from the report
+  const rawLayers = report?.strata_layers || [];
+
+  // View mode: default to 'borehole' whenever report has layers, otherwise 'borehole' or 'pavement'
+  const [viewMode, setViewMode] = useState<'borehole' | 'pavement'>('borehole');
+
+  // Presentation layout: 'dual' (Side-by-side 3D Cutaway + Borehole Core Column) or 'cube_only'
+  const [layoutMode, setLayoutMode] = useState<'dual' | 'cube_only'>('dual');
+
+  // Exploded spacing: 0 to 3 factor
   const [explodeFactor, setExplodeFactor] = useState<number>(0);
-  // Selected layer ID/Index
-  const [selectedLayerId, setSelectedLayerId] = useState<string>('layer-geotextile');
+
+  // Internal layer selection index
+  const [internalIndex, setInternalIndex] = useState<number>(0);
+
   // Camera perspective preset
   const [cameraPreset, setCameraPreset] = useState<'isometric' | 'steep' | 'cross_section'>('isometric');
-  // Water table plane toggle
+
+  // Groundwater table plane toggle
   const [showWaterTable, setShowWaterTable] = useState<boolean>(true);
-  // Construction machinery simulation toggle
+
+  // Machinery simulation toggle
   const [showMachineryOnSite, setShowMachineryOnSite] = useState<boolean>(true);
+
   // Fullscreen view toggle
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
 
-  // Generate dynamic borehole layers if report is provided and in borehole mode
-  const rawLayers = report?.strata_layers || [];
+  // Switch to borehole mode automatically when report layers become available
+  useEffect(() => {
+    if (rawLayers.length > 0) {
+      setViewMode('borehole');
+    }
+  }, [report?.id, rawLayers.length]);
+
+  // Construct dynamic borehole layers matching borehole strata column 1-to-1
   const boreholeLayers: PavementLayerDefinition[] = rawLayers.map((l, idx) => {
     const theme = getStrataTheme(l.material_key);
-    let pattern: PavementLayerDefinition['patternType'] = 'compacted_subgrade';
-    if (l.is_rock && (l.ucs_mpa || 0) > 40) pattern = 'bedrock_boulders';
-    else if (l.is_rock) pattern = 'base_aggregate';
-    else if (l.material_key.includes('gravel')) pattern = 'subbase_gravel';
-    else if (l.material_key.includes('sand')) pattern = 'binder';
-    else if (l.material_key.includes('fill') || l.material_key.includes('topsoil')) pattern = 'asphalt';
+    const shading = getStrata3DShading(l.material_key, l.is_rock, l.ucs_mpa);
 
     return {
       id: `borehole-${idx}`,
       name: l.material,
       subtitle: `${theme.categoryLabel} • ${l.weathering_grade || 'Stratum ' + (idx + 1)}`,
       category: l.category || (l.is_rock ? 'Rock Bedrock' : 'Overburden Soil'),
-      thicknessMm: Math.round(l.thickness_m * 1000),
-      thicknessDisplay: `${l.thickness_m.toFixed(2)} m thick`,
+      thicknessMm: Math.round(Math.max(l.thickness_m, 0.1) * 1000),
+      thicknessDisplay: `${l.thickness_m.toFixed(1)} m thick`,
       depthRangeDisplay: `${l.top_m.toFixed(1)}m – ${l.bottom_m.toFixed(1)}m EGL`,
       materialKey: l.material_key,
-      fillLeft: theme.accentColor,
-      fillRight: '#0f172a',
-      patternType: pattern,
+      fillLeft: shading.leftTone,
+      fillRight: shading.rightTone,
+      fillTop: shading.topTone,
+      strokeColor: shading.stroke,
+      top_m: l.top_m,
+      bottom_m: l.bottom_m,
+      thickness_m: l.thickness_m,
+      patternType: shading.patternType,
       excavabilityClassNum: l.excavability_class_num,
       ucsMpa: l.ucs_mpa,
+      rqdPct: l.rqd_pct,
+      sptN: l.spt_n,
+      cbrPct: l.spt_n ? l.spt_n * 2 : undefined,
       bulkingFactor: l.bulking_factor || 1.3,
       description: l.report_description || l.description || 'Geotechnical subsurface layer identified from borehole core investigation.',
-      recommendedMachinery: l.excavability_class_num >= 4 ? ['breaker', 'drill_rig', 'excavator_20t', 'tipper'] : ['backhoe', 'excavator_20t', 'tipper'],
+      recommendedMachinery: getRecommendedMachineryForClass(l.excavability_class_num),
       specs: {
-        compaction: l.spt_n ? `SPT N = ${l.spt_n}` : 'N/A',
-        permeability: l.below_water_table ? 'Saturated Ingress' : 'Dry/Damp',
-        lifespan: 'In-Situ Horizon',
-        primaryRole: l.excavation_method || 'Subsurface formation',
+        compaction: l.spt_n ? `SPT N = ${l.spt_n}` : l.rqd_pct ? `RQD = ${l.rqd_pct}%` : 'In-Situ Core',
+        permeability: l.below_water_table ? 'Saturated Ingress (Below GWT)' : 'Dry / Normal Formation',
+        lifespan: l.is_rock ? 'Geological Bedrock Substratum' : 'In-Situ Sedimentary Horizon',
+        primaryRole: l.excavation_method || (l.is_rock ? 'Founding Bedrock Strata' : 'Overburden Formation'),
       },
     };
   });
 
-  const activeLayers = viewMode === 'pavement' || boreholeLayers.length === 0
-    ? REFERENCE_HIGHWAY_LAYERS
-    : boreholeLayers;
+  const activeLayers = (viewMode === 'borehole' && boreholeLayers.length > 0)
+    ? boreholeLayers
+    : (viewMode === 'pavement' ? REFERENCE_HIGHWAY_LAYERS : (boreholeLayers.length > 0 ? boreholeLayers : REFERENCE_HIGHWAY_LAYERS));
 
-  const currentLayer = activeLayers.find((l) => l.id === selectedLayerId) || activeLayers[0];
+  // Active layer index synchronization with parent
+  const activeIndex = (selectedLayerIndex !== undefined && selectedLayerIndex !== null)
+    ? Math.max(0, Math.min(selectedLayerIndex, activeLayers.length - 1))
+    : Math.max(0, Math.min(internalIndex, activeLayers.length - 1));
+
+  const currentLayer = activeLayers[activeIndex] || activeLayers[0];
+
+  const handleSelectLayer = (idx: number) => {
+    setInternalIndex(idx);
+    onSelectLayerIndex?.(idx);
+  };
 
   // Isometric Geometry Dimensions
-  // SVG Canvas viewport: 900 x 780
   const originX = 450;
   const originY = cameraPreset === 'steep' ? 120 : cameraPreset === 'cross_section' ? 140 : 155;
-  const widthX = cameraPreset === 'cross_section' ? 360 : 310; // Left face projection
-  const depthX = cameraPreset === 'cross_section' ? 160 : 310; // Right face projection
+  const widthX = cameraPreset === 'cross_section' ? 360 : 310;
+  const depthX = cameraPreset === 'cross_section' ? 160 : 310;
 
-  // Angles
   const leftAngleRad = (cameraPreset === 'steep' ? 24 : 30) * (Math.PI / 180);
   const rightAngleRad = (cameraPreset === 'steep' ? 24 : 30) * (Math.PI / 180);
 
-  // Corner vectors for Top Face:
-  // Front Center point:
+  // Top Face Corner Vectors
   const pFront = { x: originX, y: originY };
-  // Left point:
   const pLeft = {
     x: originX - widthX * Math.cos(leftAngleRad),
     y: originY - widthX * Math.sin(leftAngleRad),
   };
-  // Right point:
   const pRight = {
     x: originX + depthX * Math.cos(rightAngleRad),
     y: originY - depthX * Math.sin(rightAngleRad),
   };
-  // Back point:
   const pBack = {
     x: originX - widthX * Math.cos(leftAngleRad) + depthX * Math.cos(rightAngleRad),
     y: originY - widthX * Math.sin(leftAngleRad) - depthX * Math.sin(rightAngleRad),
   };
 
-  // Calculate cumulative heights for each layer in SVG pixels
+  // Proportional thickness calculation matching actual borehole depths
   const totalModelHeightPx = 360;
-  const totalThickness = activeLayers.reduce((acc, l) => acc + Math.max(l.thicknessMm, 40), 0);
+  const totalThicknessM = activeLayers.reduce((acc, l) => acc + (l.thicknessMm / 1000), 0) || 8.0;
 
   let currentYOffset = 0;
   const layerGeometries = activeLayers.map((layer, index) => {
-    const rawH = (Math.max(layer.thicknessMm, 40) / totalThickness) * totalModelHeightPx;
-    // ensure each layer has a distinct visible slab height
-    const slabHeight = Math.max(28, Math.min(75, rawH));
+    const layerThicknessM = layer.thicknessMm / 1000;
+    const rawH = (layerThicknessM / totalThicknessM) * totalModelHeightPx;
+    // ensure each layer has a distinct visible slab height: min 32px, max 95px
+    const slabHeight = Math.max(32, Math.min(95, rawH));
     const topY = currentYOffset;
     const bottomY = topY + slabHeight;
     currentYOffset = bottomY;
@@ -356,74 +637,115 @@ export const IsometricGeologicalCube: React.FC<IsometricGeologicalCubeProps> = (
       bottomY,
       slabHeight,
       explodeY,
-      isTarget: layer.id === currentLayer.id,
+      isTarget: index === activeIndex,
     };
   });
 
-  // Water table depth (approx 45% down or custom)
-  const waterTablePixelY = (activeLayers.length >= 5 ? layerGeometries[4].topY : 180);
+  // Calculate accurate Water table pixel Y based on parsed report water table depth
+  const waterTableDepth = report?.water_table_depth_m;
+  let waterTablePixelY = 180;
+  if (waterTableDepth != null && rawLayers.length > 0) {
+    const maxDepth = rawLayers[rawLayers.length - 1].bottom_m || 8.0;
+    const clampedDepth = Math.max(0, Math.min(maxDepth, waterTableDepth));
+    for (const geom of layerGeometries) {
+      const l = geom.layer;
+      if (clampedDepth >= l.top_m && clampedDepth <= l.bottom_m) {
+        const ratio = l.thickness_m > 0 ? (clampedDepth - l.top_m) / l.thickness_m : 0.5;
+        waterTablePixelY = geom.topY + ratio * geom.slabHeight;
+        break;
+      }
+    }
+  }
 
   return (
     <div className={`bg-slate-950 text-white rounded-2xl border border-slate-800 shadow-2xl overflow-hidden transition-all duration-300 ${isFullscreen ? 'fixed inset-4 z-50 rounded-2xl flex flex-col' : 'relative'}`}>
-      {/* Visualizer Top Bar & Control Ribbon */}
-      <div className="bg-slate-900/90 border-b border-slate-800 px-5 py-4 flex flex-wrap items-center justify-between gap-4 backdrop-blur-md">
+      {/* Top Visualizer Header Bar */}
+      <div className="bg-slate-900/95 border-b border-slate-800 px-5 py-3.5 flex flex-wrap items-center justify-between gap-4 backdrop-blur-md">
         <div className="flex items-center gap-3">
           <div className="p-2.5 rounded-xl bg-amber-500/20 text-amber-400 border border-amber-500/30 shadow-inner">
-            <Layers className="w-5 h-5 animate-pulse" />
+            <Rotate3d className="w-5 h-5 animate-pulse" />
           </div>
           <div>
             <div className="flex items-center gap-2">
               <h2 className="text-base font-extrabold tracking-tight text-white flex items-center gap-2">
-                3D Isometric Geological & Subsurface Cutaway
+                3D Geological Subsurface Cutaway Visualizer
               </h2>
-              <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-amber-400/20 text-amber-300 border border-amber-400/30">
-                BIM / Geo-Stratum 3D
+              <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-emerald-400/20 text-emerald-300 border border-emerald-400/30">
+                100% Synced With Borehole Core
               </span>
             </div>
             <p className="text-xs text-slate-400">
-              Interactive 3D structural cross-section showing road pavement courses, geotextile grid, subgrade, and foundation bedrock.
+              Interactive 3D structural model matching borehole stratigraphy depths, thicknesses, rock properties and JCB/breaker fleet sizing.
             </p>
           </div>
         </div>
 
         {/* View Mode & Preset Controls */}
         <div className="flex flex-wrap items-center gap-2.5">
-          {/* Mode Switcher */}
+          {/* Layout Mode (Dual Side-by-Side vs 3D Cube Only) */}
+          <div className="bg-slate-950 p-1 rounded-xl border border-slate-800 flex items-center gap-1 text-xs">
+            <button
+              onClick={() => setLayoutMode('dual')}
+              className={`px-3 py-1.5 rounded-lg font-semibold flex items-center gap-1.5 transition-all ${
+                layoutMode === 'dual'
+                  ? 'bg-amber-500 text-slate-950 shadow-md font-bold'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+              title="View 3D Visual and Borehole Column side-by-side"
+            >
+              <Columns className="w-3.5 h-3.5" />
+              Side-by-Side Dual View
+            </button>
+            <button
+              onClick={() => setLayoutMode('cube_only')}
+              className={`px-3 py-1.5 rounded-lg font-semibold flex items-center gap-1.5 transition-all ${
+                layoutMode === 'cube_only'
+                  ? 'bg-slate-800 text-amber-400 border border-slate-700 shadow-md font-bold'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+              title="Expanded 3D Isometric View"
+            >
+              <Box className="w-3.5 h-3.5" />
+              3D Cube Focus
+            </button>
+          </div>
+
+          {/* Stratum Layer Mode Switcher */}
           <div className="bg-slate-950 p-1 rounded-xl border border-slate-800 flex items-center gap-1 shadow-inner text-xs">
             <button
               onClick={() => {
-                setViewMode('pavement');
-                setSelectedLayerId(REFERENCE_HIGHWAY_LAYERS[4].id);
-              }}
-              className={`px-3 py-1.5 rounded-lg font-semibold flex items-center gap-1.5 transition-all ${
-                viewMode === 'pavement'
-                  ? 'bg-amber-500 text-slate-950 shadow-md'
-                  : 'text-slate-400 hover:text-white'
-              }`}
-            >
-              <Compass className="w-3.5 h-3.5" />
-              Highway Pavement Block
-            </button>
-            <button
-              onClick={() => {
                 setViewMode('borehole');
-                if (boreholeLayers.length > 0) setSelectedLayerId(boreholeLayers[0].id);
+                handleSelectLayer(0);
               }}
               className={`px-3 py-1.5 rounded-lg font-semibold flex items-center gap-1.5 transition-all ${
                 viewMode === 'borehole'
-                  ? 'bg-blue-600 text-white shadow-md'
+                  ? 'bg-emerald-600 text-white shadow-md font-bold'
                   : 'text-slate-400 hover:text-white'
               }`}
             >
               <Drill className="w-3.5 h-3.5" />
-              Borehole Core Stratum ({boreholeLayers.length > 0 ? boreholeLayers.length : 'Live'})
+              Borehole Strata ({boreholeLayers.length > 0 ? `${boreholeLayers.length} Layers` : 'Active'})
+            </button>
+            <button
+              onClick={() => {
+                setViewMode('pavement');
+                handleSelectLayer(0);
+              }}
+              className={`px-3 py-1.5 rounded-lg font-semibold flex items-center gap-1.5 transition-all ${
+                viewMode === 'pavement'
+                  ? 'bg-slate-700 text-white shadow-md'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              <Compass className="w-3.5 h-3.5" />
+              Highway Pavement Stack
             </button>
           </div>
 
           {/* Explode 3D Separation Slider */}
           <div className="flex items-center gap-2 bg-slate-950/80 px-3 py-1.5 rounded-xl border border-slate-800 text-xs">
             <Sliders className="w-3.5 h-3.5 text-amber-400" />
-            <span className="text-[11px] text-slate-400 font-medium whitespace-nowrap">Explode 3D:</span>
+            <span className="text-[11px] text-slate-400 font-medium whitespace-nowrap">Explode:</span>
             <input
               type="range"
               min={0}
@@ -431,8 +753,8 @@ export const IsometricGeologicalCube: React.FC<IsometricGeologicalCubeProps> = (
               step={0.1}
               value={explodeFactor}
               onChange={(e) => setExplodeFactor(parseFloat(e.target.value))}
-              aria-label="Explode 3D layers separation"
-              className="w-24 accent-amber-400 cursor-pointer"
+              aria-label="Explode 3D strata separation"
+              className="w-20 accent-amber-400 cursor-pointer"
             />
             <span className="text-[10px] font-mono font-bold text-amber-300 w-8 text-right">
               {Math.round(explodeFactor * 33)}%
@@ -444,7 +766,7 @@ export const IsometricGeologicalCube: React.FC<IsometricGeologicalCubeProps> = (
             <button
               onClick={() => setCameraPreset('isometric')}
               title="Isometric 30° view"
-              className={`px-2.5 py-1 rounded-md text-[11px] font-semibold transition-colors ${
+              className={`px-2 py-1 rounded-md text-[11px] font-semibold transition-colors ${
                 cameraPreset === 'isometric' ? 'bg-slate-800 text-amber-400 border border-slate-700' : 'text-slate-400 hover:text-slate-200'
               }`}
             >
@@ -452,8 +774,8 @@ export const IsometricGeologicalCube: React.FC<IsometricGeologicalCubeProps> = (
             </button>
             <button
               onClick={() => setCameraPreset('steep')}
-              title="High angle overview"
-              className={`px-2.5 py-1 rounded-md text-[11px] font-semibold transition-colors ${
+              title="Top-down perspective"
+              className={`px-2 py-1 rounded-md text-[11px] font-semibold transition-colors ${
                 cameraPreset === 'steep' ? 'bg-slate-800 text-amber-400 border border-slate-700' : 'text-slate-400 hover:text-slate-200'
               }`}
             >
@@ -462,11 +784,11 @@ export const IsometricGeologicalCube: React.FC<IsometricGeologicalCubeProps> = (
             <button
               onClick={() => setCameraPreset('cross_section')}
               title="Front Cutaway focus"
-              className={`px-2.5 py-1 rounded-md text-[11px] font-semibold transition-colors ${
+              className={`px-2 py-1 rounded-md text-[11px] font-semibold transition-colors ${
                 cameraPreset === 'cross_section' ? 'bg-slate-800 text-amber-400 border border-slate-700' : 'text-slate-400 hover:text-slate-200'
               }`}
             >
-              Cutaway Cut
+              Section
             </button>
           </div>
 
@@ -509,10 +831,10 @@ export const IsometricGeologicalCube: React.FC<IsometricGeologicalCubeProps> = (
         </div>
       </div>
 
-      {/* Main Visualizer Body: Left 3D Viewport + Right Engineering Detail HUD */}
+      {/* Main Visualizer Body Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-0 flex-1 overflow-hidden">
         {/* 3D Isometric Viewport */}
-        <div className="lg:col-span-8 bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950 p-4 md:p-6 flex flex-col items-center justify-center relative select-none overflow-hidden min-h-[540px]">
+        <div className={`${layoutMode === 'dual' ? 'lg:col-span-5' : 'lg:col-span-8'} bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950 p-4 md:p-6 flex flex-col items-center justify-center relative select-none overflow-hidden min-h-[540px]`}>
           {/* Subtle Isometric Grid Background Lines */}
           <div
             className="absolute inset-0 opacity-15 pointer-events-none"
@@ -522,16 +844,16 @@ export const IsometricGeologicalCube: React.FC<IsometricGeologicalCubeProps> = (
             }}
           />
 
-          {/* Atmospheric Road Background Silhouette & Machinery Context */}
+          {/* Top Status Banner */}
           <div className="absolute top-2 left-6 right-6 flex items-center justify-between text-[11px] text-slate-500 pointer-events-none z-0">
             <div className="flex items-center gap-2">
               <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
-              <span className="font-mono text-slate-400 uppercase tracking-wider">
-                LIVE 3D STRATUM MODEL • {activeLayers.length} DISCRETE LAYERS
+              <span className="font-mono text-slate-300 uppercase tracking-wider font-semibold">
+                {viewMode === 'borehole' ? 'BOREHOLE STRATA CORE 3D' : 'HIGHWAY PAVEMENT 3D'} • {activeLayers.length} LAYERS
               </span>
             </div>
-            <div className="font-mono text-slate-400">
-              EGL 0.00m → Founding Bedrock Refusal
+            <div className="font-mono text-amber-400 font-bold">
+              0.0m → {activeLayers[activeLayers.length - 1]?.bottom_m.toFixed(1) || '8.0'}m Depth
             </div>
           </div>
 
@@ -543,85 +865,87 @@ export const IsometricGeologicalCube: React.FC<IsometricGeologicalCubeProps> = (
               style={{ maxHeight: isFullscreen ? '78vh' : '580px' }}
             >
               <defs>
+                {/* Dynamic Left Face, Right Face, and Top Face Gradients for Each Layer */}
+                {activeLayers.map((l, index) => {
+                  const shading = getStrata3DShading(l.materialKey, l.ucsMpa ? l.ucsMpa > 25 : false, l.ucsMpa);
+                  return (
+                    <React.Fragment key={`grads-${index}`}>
+                      {/* Left Face Illuminated Gradient */}
+                      <linearGradient id={`${uid}-grad-left-${index}`} x1="0%" y1="0%" x2="100%" y2="0%">
+                        <stop offset="0%" stopColor={shading.leftTone} />
+                        <stop offset="100%" stopColor={shading.leftToneEnd} />
+                      </linearGradient>
+
+                      {/* Right Face Shaded Isometric Gradient */}
+                      <linearGradient id={`${uid}-grad-right-${index}`} x1="0%" y1="0%" x2="100%" y2="0%">
+                        <stop offset="0%" stopColor={shading.leftToneEnd} />
+                        <stop offset="100%" stopColor={shading.rightTone} />
+                      </linearGradient>
+
+                      {/* Top Exposed Face Gradient */}
+                      <linearGradient id={`${uid}-grad-top-${index}`} x1="0%" y1="0%" x2="100%" y2="100%">
+                        <stop offset="0%" stopColor={shading.topTone} />
+                        <stop offset="100%" stopColor={shading.leftTone} />
+                      </linearGradient>
+                    </React.Fragment>
+                  );
+                })}
+
+                {/* Ground Surface Gradient for Natural Earth Collar */}
+                <linearGradient id={`${uid}-grad-ground`} x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" stopColor="#065f46" />
+                  <stop offset="50%" stopColor="#047857" />
+                  <stop offset="100%" stopColor="#064e3b" />
+                </linearGradient>
+
                 {/* Asphalt texture pattern */}
                 <pattern id={`${uid}-pat-asphalt`} width="16" height="16" patternUnits="userSpaceOnUse">
-                  <rect width="16" height="16" fill="#18181b" />
-                  <circle cx="2" cy="3" r="1" fill="#3f3f46" />
-                  <circle cx="10" cy="5" r="1.5" fill="#27272a" />
-                  <circle cx="6" cy="11" r="1" fill="#52525b" />
-                  <circle cx="14" cy="13" r="1.2" fill="#3f3f46" />
+                  <rect width="16" height="16" fill="none" />
+                  <circle cx="2" cy="3" r="1" fill="#ffffff" opacity="0.15" />
+                  <circle cx="10" cy="5" r="1.5" fill="#000000" opacity="0.25" />
+                  <circle cx="6" cy="11" r="1" fill="#ffffff" opacity="0.1" />
+                  <circle cx="14" cy="13" r="1.2" fill="#000000" opacity="0.2" />
                 </pattern>
 
-                {/* Binder course pattern */}
+                {/* Granular / sand binder pattern */}
                 <pattern id={`${uid}-pat-binder`} width="20" height="20" patternUnits="userSpaceOnUse">
-                  <rect width="20" height="20" fill="#78350f" />
-                  <polygon points="3,3 7,2 6,8 2,6" fill="#b45309" />
-                  <polygon points="12,6 17,8 15,14 10,11" fill="#92400e" />
-                  <polygon points="5,14 8,18 3,19" fill="#d97706" />
-                  <circle cx="17" cy="17" r="2" fill="#451a03" />
+                  <rect width="20" height="20" fill="none" />
+                  <polygon points="3,3 7,2 6,8 2,6" fill="#000000" opacity="0.2" />
+                  <polygon points="12,6 17,8 15,14 10,11" fill="#ffffff" opacity="0.15" />
+                  <circle cx="17" cy="17" r="1.8" fill="#000000" opacity="0.25" />
+                  <circle cx="6" cy="16" r="1.2" fill="#ffffff" opacity="0.2" />
                 </pattern>
 
                 {/* Crushed aggregate base pattern */}
                 <pattern id={`${uid}-pat-aggregate`} width="24" height="24" patternUnits="userSpaceOnUse">
-                  <rect width="24" height="24" fill="#475569" />
-                  <polygon points="4,4 10,2 8,10 2,8" fill="#94a3b8" />
-                  <polygon points="14,3 21,7 18,14 12,10" fill="#64748b" />
-                  <polygon points="5,15 11,13 13,21 3,20" fill="#cbd5e1" />
-                  <polygon points="16,16 22,18 20,23 15,21" fill="#334155" />
+                  <rect width="24" height="24" fill="none" />
+                  <polygon points="4,4 10,2 8,10 2,8" fill="#ffffff" opacity="0.2" />
+                  <polygon points="14,3 21,7 18,14 12,10" fill="#000000" opacity="0.25" />
+                  <polygon points="5,15 11,13 13,21 3,20" fill="#ffffff" opacity="0.15" />
                 </pattern>
 
                 {/* Granular subbase cobbles pattern */}
                 <pattern id={`${uid}-pat-subbase`} width="28" height="28" patternUnits="userSpaceOnUse">
-                  <rect width="28" height="28" fill="#78716c" />
-                  <ellipse cx="6" cy="7" rx="5" ry="4" fill="#a8a29e" />
-                  <ellipse cx="19" cy="8" rx="6" ry="5" fill="#57534e" />
-                  <ellipse cx="10" cy="20" rx="7" ry="5" fill="#d6d3d1" />
-                  <ellipse cx="23" cy="21" rx="4" ry="4" fill="#44403c" />
-                </pattern>
-
-                {/* Geotextile cyan engineered grid pattern */}
-                <pattern id={`${uid}-pat-geotextile`} width="18" height="14" patternUnits="userSpaceOnUse">
-                  <rect width="18" height="14" fill="#0284c7" />
-                  <line x1="0" y1="0" x2="18" y2="0" stroke="#38bdf8" strokeWidth="1.5" />
-                  <line x1="0" y1="7" x2="18" y2="7" stroke="#0ea5e9" strokeWidth="1" strokeDasharray="2,2" />
-                  <line x1="0" y1="0" x2="0" y2="14" stroke="#38bdf8" strokeWidth="1.5" />
-                  <line x1="9" y1="0" x2="9" y2="14" stroke="#7dd3fc" strokeWidth="1" />
-                  {/* Subtle brick interlock */}
-                  <rect x="2" y="2" width="5" height="3" fill="#0369a1" opacity="0.6" />
-                  <rect x="11" y="9" width="5" height="3" fill="#0c4a6e" opacity="0.6" />
+                  <rect width="28" height="28" fill="none" />
+                  <ellipse cx="6" cy="7" rx="5" ry="4" fill="#000000" opacity="0.2" />
+                  <ellipse cx="19" cy="8" rx="6" ry="5" fill="#ffffff" opacity="0.15" />
+                  <ellipse cx="10" cy="20" rx="7" ry="5" fill="#000000" opacity="0.25" />
                 </pattern>
 
                 {/* Compacted subgrade clay pattern */}
                 <pattern id={`${uid}-pat-subgrade`} width="30" height="20" patternUnits="userSpaceOnUse">
-                  <rect width="30" height="20" fill="#3f1f0a" />
-                  <line x1="0" y1="5" x2="30" y2="5" stroke="#78350f" strokeWidth="1" strokeDasharray="8,4" />
-                  <line x1="0" y1="12" x2="30" y2="12" stroke="#261005" strokeWidth="1.5" />
-                  <line x1="0" y1="18" x2="30" y2="18" stroke="#54240a" strokeWidth="0.8" strokeDasharray="4,6" />
-                  <circle cx="7" cy="8" r="1.5" fill="#92400e" />
-                  <circle cx="22" cy="15" r="1.2" fill="#78350f" />
-                </pattern>
-
-                {/* Timber cribbing / geocell pattern */}
-                <pattern id={`${uid}-pat-timber`} width="36" height="24" patternUnits="userSpaceOnUse">
-                  <rect width="36" height="24" fill="#92400e" />
-                  <rect x="0" y="0" width="36" height="11" fill="#b45309" stroke="#78350f" strokeWidth="1" />
-                  <rect x="0" y="12" width="36" height="12" fill="#a16207" stroke="#713f12" strokeWidth="1" />
-                  <line x1="18" y1="0" x2="18" y2="11" stroke="#451a03" strokeWidth="1.5" />
-                  <line x1="9" y1="12" x2="9" y2="24" stroke="#451a03" strokeWidth="1.5" />
-                  <line x1="27" y1="12" x2="27" y2="24" stroke="#451a03" strokeWidth="1.5" />
+                  <rect width="30" height="20" fill="none" />
+                  <line x1="0" y1="5" x2="30" y2="5" stroke="#000000" strokeWidth="1" strokeDasharray="8,4" opacity="0.2" />
+                  <line x1="0" y1="12" x2="30" y2="12" stroke="#ffffff" strokeWidth="1" opacity="0.15" />
                 </pattern>
 
                 {/* Bedrock boulders & fractured basalt pattern */}
                 <pattern id={`${uid}-pat-bedrock`} width="48" height="40" patternUnits="userSpaceOnUse">
-                  <rect width="48" height="40" fill="#090d16" />
-                  {/* Joint planes and crack fissures */}
-                  <path d="M0,8 L18,12 L34,6 L48,14" stroke="#1e293b" strokeWidth="2" fill="none" />
-                  <path d="M12,11 L16,28 L32,32" stroke="#334155" strokeWidth="1.5" fill="none" />
-                  <path d="M28,6 L38,20 L48,22" stroke="#0f172a" strokeWidth="2.5" fill="none" />
-                  {/* Embedded boulder shapes */}
-                  <polygon points="4,18 12,16 14,24 8,26" fill="#1e293b" stroke="#334155" strokeWidth="1" />
-                  <polygon points="26,14 36,12 38,22 28,24" fill="#334155" stroke="#475569" strokeWidth="1" />
-                  <polygon points="16,28 26,30 24,38 12,36" fill="#1e293b" stroke="#475569" strokeWidth="1" />
+                  <rect width="48" height="40" fill="none" />
+                  <path d="M0,8 L18,12 L34,6 L48,14" stroke="#ffffff" strokeWidth="1.5" opacity="0.25" fill="none" />
+                  <path d="M12,11 L16,28 L32,32" stroke="#000000" strokeWidth="2" opacity="0.35" fill="none" />
+                  <polygon points="4,18 12,16 14,24 8,26" fill="#000000" opacity="0.25" />
+                  <polygon points="26,14 36,12 38,22 28,24" fill="#ffffff" opacity="0.2" />
                 </pattern>
 
                 {/* Dynamic Lighting Linear Gradients */}
@@ -631,11 +955,6 @@ export const IsometricGeologicalCube: React.FC<IsometricGeologicalCubeProps> = (
                   <stop offset="100%" stopColor="#09090b" />
                 </linearGradient>
 
-                <linearGradient id={`${uid}-grad-highlight`} x1="0%" y1="0%" x2="0%" y2="100%">
-                  <stop offset="0%" stopColor="#fbbf24" stopOpacity="0.8" />
-                  <stop offset="100%" stopColor="#d97706" stopOpacity="0.2" />
-                </linearGradient>
-
                 <linearGradient id={`${uid}-grad-watertable`} x1="0%" y1="0%" x2="100%" y2="0%">
                   <stop offset="0%" stopColor="#06b6d4" stopOpacity="0.65" />
                   <stop offset="50%" stopColor="#38bdf8" stopOpacity="0.85" />
@@ -643,7 +962,7 @@ export const IsometricGeologicalCube: React.FC<IsometricGeologicalCubeProps> = (
                 </linearGradient>
               </defs>
 
-              {/* TOP ROADSURFACING & PAVEMENT PERSPECTIVE */}
+              {/* TOP SURFACE PERSPECTIVE (Ground Level EGL or Engineered Road) */}
               {(() => {
                 const topLayerGeom = layerGeometries[0];
                 const topExplode = topLayerGeom?.explodeY || 0;
@@ -652,123 +971,113 @@ export const IsometricGeologicalCube: React.FC<IsometricGeologicalCubeProps> = (
                 const pF = { x: pFront.x, y: pFront.y + topExplode };
                 const pL = { x: pLeft.x, y: pLeft.y + topExplode };
 
-                // Highway center line coordinates (from midpoint of Left-Back to Front-Right, or along the diagonal)
-                // In reference photo: Road runs from back edge to front edge!
-                const roadBackMid = {
-                  x: (pB.x + pL.x) / 2,
-                  y: (pB.y + pL.y) / 2,
-                };
-                const roadFrontMid = {
-                  x: (pR.x + pF.x) / 2,
-                  y: (pR.y + pF.y) / 2,
-                };
-
-                // Or along the centerline from pB to pF:
                 const centerLineStart = pB;
                 const centerLineEnd = pF;
 
+                const isBoreholeMode = viewMode === 'borehole';
+
                 return (
-                  <g id="top-highway-surface" className="cursor-pointer" onClick={() => setSelectedLayerId(topLayerGeom?.layer.id || '')}>
-                    {/* Main Top Isometric Polygon (Road Pavement) */}
+                  <g id="top-surface-model" className="cursor-pointer" onClick={() => handleSelectLayer(0)}>
+                    {/* Main Top Isometric Polygon */}
                     <polygon
                       points={`${pB.x},${pB.y} ${pR.x},${pR.y} ${pF.x},${pF.y} ${pL.x},${pL.y}`}
-                      fill={`url(#${uid}-grad-road)`}
-                      stroke="#52525b"
-                      strokeWidth="1.5"
+                      fill={isBoreholeMode ? `url(#${uid}-grad-ground)` : `url(#${uid}-grad-road)`}
+                      stroke={topLayerGeom?.isTarget ? '#facc15' : '#52525b'}
+                      strokeWidth={topLayerGeom?.isTarget ? 3 : 1.5}
                     />
 
-                    {/* Asphalt Texture Overlay */}
+                    {/* Top Surface Texture Overlay */}
                     <polygon
                       points={`${pB.x},${pB.y} ${pR.x},${pR.y} ${pF.x},${pF.y} ${pL.x},${pL.y}`}
                       fill={`url(#${uid}-pat-asphalt)`}
-                      opacity="0.75"
+                      opacity={isBoreholeMode ? 0.35 : 0.75}
                     />
 
-                    {/* Left Road Shoulder Boundary Strip */}
-                    <line
-                      x1={pL.x + (pB.x - pL.x) * 0.15}
-                      y1={pL.y + (pB.y - pL.y) * 0.15}
-                      x2={pF.x + (pR.x - pF.x) * 0.15}
-                      y2={pF.y + (pR.y - pF.y) * 0.15}
-                      stroke="#f1f5f9"
-                      strokeWidth="2.5"
-                      strokeDasharray="14,6"
-                      opacity="0.85"
-                    />
+                    {/* Borehole Collar Marker (in Borehole Mode) */}
+                    {isBoreholeMode ? (
+                      <g>
+                        {/* Ground Grid Pattern Lines */}
+                        <line
+                          x1={pL.x + (pB.x - pL.x) * 0.3}
+                          y1={pL.y + (pB.y - pL.y) * 0.3}
+                          x2={pF.x + (pR.x - pF.x) * 0.3}
+                          y2={pF.y + (pR.y - pF.y) * 0.3}
+                          stroke="#34d399"
+                          strokeWidth="1"
+                          strokeDasharray="4,4"
+                          opacity="0.4"
+                        />
+                        <line
+                          x1={pL.x + (pB.x - pL.x) * 0.7}
+                          y1={pL.y + (pB.y - pL.y) * 0.7}
+                          x2={pF.x + (pR.x - pF.x) * 0.7}
+                          y2={pF.y + (pR.y - pF.y) * 0.7}
+                          stroke="#34d399"
+                          strokeWidth="1"
+                          strokeDasharray="4,4"
+                          opacity="0.4"
+                        />
 
-                    {/* Right Road Shoulder Boundary Strip */}
-                    <line
-                      x1={pB.x + (pR.x - pB.x) * 0.85}
-                      y1={pB.y + (pR.y - pB.y) * 0.85}
-                      x2={pL.x + (pF.x - pL.x) * 0.85}
-                      y2={pL.y + (pF.y - pL.y) * 0.85}
-                      stroke="#f1f5f9"
-                      strokeWidth="2.5"
-                      strokeDasharray="14,6"
-                      opacity="0.85"
-                    />
+                        {/* Concentric Borehole Collar Pin (BH-01 Target) */}
+                        <g transform={`translate(${(pB.x + pF.x) / 2}, ${(pB.y + pF.y) / 2})`}>
+                          <circle cx="0" cy="0" r="14" fill="#0f172a" stroke="#ca8a04" strokeWidth="2" opacity="0.95" />
+                          <circle cx="0" cy="0" r="7" fill="#fbbf24" stroke="#d97706" strokeWidth="1.5" />
+                          <circle cx="0" cy="0" r="2.5" fill="#0f172a" />
+                          <line x1="-20" y1="0" x2="20" y2="0" stroke="#ca8a04" strokeWidth="1" strokeDasharray="3,2" />
+                          <line x1="0" y1="-20" x2="0" y2="20" stroke="#ca8a04" strokeWidth="1" strokeDasharray="3,2" />
 
-                    {/* Dual Solid Yellow Centerline Lines (Exact match to reference image!) */}
-                    <g opacity="0.95">
-                      {/* Left yellow line */}
-                      <line
-                        x1={centerLineStart.x - 3}
-                        y1={centerLineStart.y}
-                        x2={centerLineEnd.x - 3}
-                        y2={centerLineEnd.y}
-                        stroke="#facc15"
-                        strokeWidth="3"
-                      />
-                      {/* Right yellow line */}
-                      <line
-                        x1={centerLineStart.x + 3}
-                        y1={centerLineStart.y}
-                        x2={centerLineEnd.x + 3}
-                        y2={centerLineEnd.y}
-                        stroke="#facc15"
-                        strokeWidth="3"
-                      />
-                    </g>
+                          {/* Collar Label Badge */}
+                          <rect x="24" y="-12" width="135" height="24" rx="5" fill="#0f172a" stroke="#ca8a04" strokeWidth="1" opacity="0.9" />
+                          <text x="32" y="4" fill="#fef08a" fontSize="10" fontWeight="bold" fontFamily="monospace">
+                            ⨁ BH-01 Core Collar
+                          </text>
+                        </g>
+                      </g>
+                    ) : (
+                      /* Highway Yellow Striping */
+                      <g opacity="0.95">
+                        <line
+                          x1={centerLineStart.x - 3}
+                          y1={centerLineStart.y}
+                          x2={centerLineEnd.x - 3}
+                          y2={centerLineEnd.y}
+                          stroke="#facc15"
+                          strokeWidth="3"
+                        />
+                        <line
+                          x1={centerLineStart.x + 3}
+                          y1={centerLineStart.y}
+                          x2={centerLineEnd.x + 3}
+                          y2={centerLineEnd.y}
+                          stroke="#facc15"
+                          strokeWidth="3"
+                        />
+                      </g>
+                    )}
 
-                    {/* Road Surface Depth Perception Perspective Lines */}
-                    <line
-                      x1={pB.x}
-                      y1={pB.y}
-                      x2={pF.x}
-                      y2={pF.y}
-                      stroke="#ca8a04"
-                      strokeWidth="1"
-                      strokeDasharray="4,8"
-                      opacity="0.4"
-                    />
-
-                    {/* Site machinery positioned on top if enabled */}
+                    {/* Site machinery positioned on surface if enabled */}
                     {showMachineryOnSite && (
-                      <g transform={`translate(${centerLineStart.x + 30}, ${centerLineStart.y + 40}) scale(0.85)`}>
-                        {/* Mini Excavator Graphic */}
+                      <g transform={`translate(${centerLineStart.x + 40}, ${centerLineStart.y + 45}) scale(0.85)`}>
                         <g className="filter drop-shadow-md">
-                          {/* Machine tracks */}
                           <rect x="-24" y="8" width="48" height="9" rx="4" fill="#18181b" stroke="#3f3f46" strokeWidth="1" />
                           <circle cx="-16" cy="12" r="3" fill="#71717a" />
                           <circle cx="0" cy="12" r="3" fill="#71717a" />
                           <circle cx="16" cy="12" r="3" fill="#71717a" />
-                          {/* Cabin & Body */}
                           <rect x="-18" y="-6" width="36" height="15" rx="3" fill="#f59e0b" stroke="#d97706" strokeWidth="1" />
                           <rect x="-14" y="-4" width="14" height="9" rx="1.5" fill="#38bdf8" opacity="0.75" />
-                          {/* Boom & Arm */}
                           <path d="M12,-2 L32,-16 L48,-6 L56,4" stroke="#d97706" strokeWidth="4" strokeLinecap="round" fill="none" />
                           <polygon points="54,2 62,6 58,12 52,6" fill="#18181b" />
                         </g>
-                        <text x="-12" y="28" fill="#fbbf24" fontSize="9" fontWeight="bold" fontFamily="monospace">
-                          20T EXCAVATOR
+                        <text x="-16" y="28" fill="#fbbf24" fontSize="9" fontWeight="bold" fontFamily="monospace">
+                          {isBoreholeMode ? 'DRILL RIG / JCB' : '20T EXCAVATOR'}
                         </text>
                       </g>
                     )}
 
                     {/* Surface Elevation Marker */}
-                    <g transform={`translate(${pB.x - 25}, ${pB.y - 15})`}>
-                      <rect x="0" y="0" width="80" height="20" rx="4" fill="#0f172a" stroke="#ca8a04" strokeWidth="1" opacity="0.9" />
-                      <text x="40" y="14" fill="#fef08a" fontSize="10" fontWeight="bold" textAnchor="middle" fontFamily="monospace">
+                    <g transform={`translate(${pB.x - 30}, ${pB.y - 18})`}>
+                      <rect x="0" y="0" width="90" height="20" rx="4" fill="#0f172a" stroke="#ca8a04" strokeWidth="1" opacity="0.9" />
+                      <text x="45" y="14" fill="#fef08a" fontSize="10" fontWeight="bold" textAnchor="middle" fontFamily="monospace">
                         EGL ±0.00m
                       </text>
                     </g>
@@ -776,46 +1085,37 @@ export const IsometricGeologicalCube: React.FC<IsometricGeologicalCubeProps> = (
                 );
               })()}
 
-              {/* RENDER ALL GEOLOGICAL & PAVEMENT LAYERS (STACKED / EXPLODED) */}
+              {/* RENDER ALL GEOLOGICAL STRATA LAYERS */}
               {layerGeometries.map(({ layer, index, topY, bottomY, slabHeight, explodeY, isTarget }) => {
                 // Left Face 4 points:
-                // Top-Left corner:
                 const tl = { x: pLeft.x, y: pLeft.y + topY + explodeY };
-                // Top-Front corner:
                 const tf = { x: pFront.x, y: pFront.y + topY + explodeY };
-                // Bottom-Front corner:
                 const bf = { x: pFront.x, y: pFront.y + bottomY + explodeY };
-                // Bottom-Left corner:
                 const bl = { x: pLeft.x, y: pLeft.y + bottomY + explodeY };
 
                 // Right Face 4 points:
-                // Top-Front: tf
-                // Top-Right:
                 const tr = { x: pRight.x, y: pRight.y + topY + explodeY };
-                // Bottom-Right:
                 const br = { x: pRight.x, y: pRight.y + bottomY + explodeY };
-                // Bottom-Front: bf
 
-                // Top Exposed Face (visible when exploded or for layer > 0)
+                // Top Exposed Face (visible when exploded)
                 const tb = { x: pBack.x, y: pBack.y + topY + explodeY };
+
+                const shading = getStrata3DShading(layer.materialKey, layer.ucsMpa ? layer.ucsMpa > 25 : false, layer.ucsMpa);
+                const theme = getStrataTheme(layer.materialKey);
 
                 // Pattern Fill ID according to patternType
                 let patId = `${uid}-pat-asphalt`;
                 if (layer.patternType === 'binder') patId = `${uid}-pat-binder`;
                 else if (layer.patternType === 'base_aggregate') patId = `${uid}-pat-aggregate`;
                 else if (layer.patternType === 'subbase_gravel') patId = `${uid}-pat-subbase`;
-                else if (layer.patternType === 'geotextile') patId = `${uid}-pat-geotextile`;
                 else if (layer.patternType === 'compacted_subgrade') patId = `${uid}-pat-subgrade`;
-                else if (layer.patternType === 'timber_bedding') patId = `${uid}-pat-timber`;
                 else if (layer.patternType === 'bedrock_boulders') patId = `${uid}-pat-bedrock`;
-
-                const isGeotextile = layer.patternType === 'geotextile';
 
                 return (
                   <g
                     key={layer.id}
                     id={`layer-group-${layer.id}`}
-                    onClick={() => setSelectedLayerId(layer.id)}
+                    onClick={() => handleSelectLayer(index)}
                     className="cursor-pointer transition-all duration-200 group"
                   >
                     {/* Exploded alignment guide dashed lines */}
@@ -827,96 +1127,96 @@ export const IsometricGeologicalCube: React.FC<IsometricGeologicalCubeProps> = (
                       </g>
                     )}
 
-                    {/* TOP FACE (Rendered when exploded so the internal surface is visible!) */}
+                    {/* TOP EXPOSED FACE (Rendered when exploded) */}
                     {explodeFactor > 0.05 && index > 0 && (
                       <polygon
                         points={`${tb.x},${tb.y} ${tr.x},${tr.y} ${tf.x},${tf.y} ${tl.x},${tl.y}`}
-                        fill={`url(#${patId})`}
-                        stroke={isTarget ? '#f59e0b' : '#64748b'}
-                        strokeWidth={isTarget ? 2 : 1}
-                        opacity={isTarget ? 1 : 0.85}
+                        fill={`url(#${uid}-grad-top-${index})`}
+                        stroke={isTarget ? '#facc15' : shading.stroke}
+                        strokeWidth={isTarget ? 2.5 : 1}
+                        opacity={isTarget ? 1 : 0.9}
                       />
                     )}
 
-                    {/* LEFT ISOMETRIC FACE (Cross-Section Profile) */}
+                    {/* LEFT ISOMETRIC FACE (Illuminated Geological Cross-Section Profile) */}
                     <polygon
                       points={`${tl.x},${tl.y} ${tf.x},${tf.y} ${bf.x},${bf.y} ${bl.x},${bl.y}`}
-                      fill={`url(#${patId})`}
-                      stroke={isTarget ? '#fbbf24' : isGeotextile ? '#38bdf8' : '#334155'}
-                      strokeWidth={isTarget ? 2.5 : isGeotextile ? 2 : 1}
+                      fill={`url(#${uid}-grad-left-${index})`}
+                      stroke={isTarget ? '#facc15' : shading.stroke}
+                      strokeWidth={isTarget ? 3 : 1.2}
                       className="transition-all"
                     />
 
-                    {/* Left Face Shading Gradient Overlay (Ambient light from top-left) */}
+                    {/* Geological Pattern Texture Overlay on Left Face */}
                     <polygon
                       points={`${tl.x},${tl.y} ${tf.x},${tf.y} ${bf.x},${bf.y} ${bl.x},${bl.y}`}
-                      fill={layer.fillLeft}
-                      opacity={isGeotextile ? 0.35 : 0.25}
-                      style={{ mixBlendMode: 'multiply' }}
+                      fill={`url(#${patId})`}
+                      opacity="0.3"
+                      style={{ mixBlendMode: 'overlay' }}
                     />
 
-                    {/* RIGHT ISOMETRIC FACE (Depth Profile & Measurement Side) */}
+                    {/* RIGHT ISOMETRIC FACE (Shaded Depth Profile Side) */}
                     <polygon
                       points={`${tf.x},${tf.y} ${tr.x},${tr.y} ${br.x},${br.y} ${bf.x},${bf.y}`}
-                      fill={`url(#${patId})`}
-                      stroke={isTarget ? '#fbbf24' : isGeotextile ? '#0284c7' : '#1e293b'}
-                      strokeWidth={isTarget ? 2.5 : isGeotextile ? 2 : 1}
+                      fill={`url(#${uid}-grad-right-${index})`}
+                      stroke={isTarget ? '#facc15' : shading.stroke}
+                      strokeWidth={isTarget ? 3 : 1.2}
                       className="transition-all"
                     />
 
-                    {/* Right Face Darker Shadow Overlay */}
+                    {/* Geological Pattern Texture Overlay on Right Face */}
                     <polygon
                       points={`${tf.x},${tf.y} ${tr.x},${tr.y} ${br.x},${br.y} ${bf.x},${bf.y}`}
-                      fill="#000000"
-                      opacity={isTarget ? 0.2 : 0.45}
+                      fill={`url(#${patId})`}
+                      opacity="0.35"
+                      style={{ mixBlendMode: 'overlay' }}
                     />
 
-                    {/* Layer Seam Highlight Line */}
+                    {/* Layer Seam Highlight Glow Lines */}
                     <line
                       x1={tl.x}
                       y1={tl.y}
                       x2={tf.x}
                       y2={tf.y}
-                      stroke={isTarget ? '#fef08a' : '#94a3b8'}
-                      strokeWidth={isTarget ? 2 : 0.75}
-                      opacity={0.8}
+                      stroke={isTarget ? '#fef08a' : '#cbd5e1'}
+                      strokeWidth={isTarget ? 2.5 : 0.8}
+                      opacity={isTarget ? 1 : 0.65}
                     />
                     <line
                       x1={tf.x}
                       y1={tf.y}
                       x2={tr.x}
                       y2={tr.y}
-                      stroke={isTarget ? '#fef08a' : '#64748b'}
-                      strokeWidth={isTarget ? 2 : 0.75}
-                      opacity={0.6}
+                      stroke={isTarget ? '#fef08a' : '#94a3b8'}
+                      strokeWidth={isTarget ? 2.5 : 0.8}
+                      opacity={isTarget ? 1 : 0.55}
                     />
 
-                    {/* LEFT FACE LAYER CALLOUT LABEL (Interactive Pin) */}
-                    <g transform={`translate(${tl.x - 12}, ${(tl.y + bl.y) / 2})`}>
+                    {/* LEFT FACE LAYER CALLOUT PIN (Matching Borehole Icon & Name) */}
+                    <g transform={`translate(${tl.x - 14}, ${(tl.y + bl.y) / 2})`}>
                       <circle
                         cx="0"
                         cy="0"
                         r={isTarget ? '7' : '5'}
-                        fill={isTarget ? '#f59e0b' : '#38bdf8'}
+                        fill={isTarget ? '#facc15' : shading.stroke}
                         stroke="#ffffff"
                         strokeWidth="1.5"
                         className={isTarget ? 'animate-pulse' : ''}
                       />
-                      {/* Connection leader line */}
-                      <line x1="0" y1="0" x2="-28" y2="0" stroke={isTarget ? '#f59e0b' : '#64748b'} strokeWidth="1.5" />
+                      <line x1="0" y1="0" x2="-24" y2="0" stroke={isTarget ? '#facc15' : shading.stroke} strokeWidth="1.5" />
                       <rect
-                        x="-175"
+                        x="-195"
                         y="-12"
-                        width="145"
-                        height="24"
-                        rx="4"
+                        width="168"
+                        height="25"
+                        rx="5"
                         fill="#090d16"
-                        stroke={isTarget ? '#f59e0b' : '#334155'}
-                        strokeWidth={isTarget ? '1.5' : '1'}
+                        stroke={isTarget ? '#facc15' : shading.stroke}
+                        strokeWidth={isTarget ? '2' : '1'}
                         opacity="0.95"
                       />
                       <text
-                        x="-102"
+                        x="-111"
                         y="4"
                         fill={isTarget ? '#fef08a' : '#f1f5f9'}
                         fontSize="10"
@@ -924,22 +1224,22 @@ export const IsometricGeologicalCube: React.FC<IsometricGeologicalCubeProps> = (
                         textAnchor="middle"
                         fontFamily="sans-serif"
                       >
-                        {layer.name.length > 21 ? layer.name.slice(0, 19) + '…' : layer.name}
+                        {theme.iconSymbol} {layer.name.length > 20 ? layer.name.slice(0, 18) + '…' : layer.name}
                       </text>
                     </g>
 
                     {/* RIGHT FACE DEPTH & THICKNESS ANNOTATION */}
                     <g transform={`translate(${tr.x + 12}, ${(tr.y + br.y) / 2})`}>
-                      <line x1="0" y1="0" x2="22" y2="0" stroke={isTarget ? '#f59e0b' : '#475569'} strokeWidth="1" strokeDasharray="2,2" />
+                      <line x1="0" y1="0" x2="20" y2="0" stroke={isTarget ? '#facc15' : '#475569'} strokeWidth="1" strokeDasharray="2,2" />
                       <text
-                        x="28"
+                        x="26"
                         y="3"
-                        fill={isTarget ? '#fef08a' : '#94a3b8'}
+                        fill={isTarget ? '#fef08a' : '#cbd5e1'}
                         fontSize="9.5"
                         fontFamily="monospace"
                         fontWeight="bold"
                       >
-                        {layer.thicknessDisplay}
+                        {layer.bottom_m.toFixed(1)}m ({layer.thicknessDisplay})
                       </text>
                     </g>
                   </g>
@@ -950,7 +1250,7 @@ export const IsometricGeologicalCube: React.FC<IsometricGeologicalCubeProps> = (
               {showWaterTable && (
                 <g id="groundwater-plane" className="pointer-events-none">
                   {(() => {
-                    const wtY = waterTablePixelY + (layerGeometries[3]?.explodeY || 0);
+                    const wtY = waterTablePixelY + (layerGeometries[Math.min(2, layerGeometries.length - 1)]?.explodeY || 0);
                     const wtL = { x: pLeft.x - 20, y: pLeft.y + wtY };
                     const wtF = { x: pFront.x, y: pFront.y + wtY };
                     const wtR = { x: pRight.x + 20, y: pRight.y + wtY };
@@ -958,7 +1258,7 @@ export const IsometricGeologicalCube: React.FC<IsometricGeologicalCubeProps> = (
 
                     return (
                       <g>
-                        {/* Translucent water table plane */}
+                        {/* Shimmering Water Table Plane */}
                         <polygon
                           points={`${wtB.x},${wtB.y} ${wtR.x},${wtR.y} ${wtF.x},${wtF.y} ${wtL.x},${wtL.y}`}
                           fill={`url(#${uid}-grad-watertable)`}
@@ -968,9 +1268,9 @@ export const IsometricGeologicalCube: React.FC<IsometricGeologicalCubeProps> = (
                           className="animate-pulse"
                         />
 
-                        {/* Water level ripple waves */}
+                        {/* Ripples */}
                         <path
-                          d={`M${wtL.x},${wtL.y} Q${(wtL.x + wtF.x) / 2},${(wtL.y + wtF.y) / 2 - 4} ${wtF.x},${wtF.y} Q${(wtF.x + wtR.x) / 2},${(wtF.y + wtR.y) / 2 - 4} ${wtR.x},${wtR.y}`}
+                          d={`M${wtL.x},${wtL.y} Q${(wtL.x + wtF.x) / 2},${(wtL.y + wtF.y) / 2 - 4} ${wtF.x},${wtF.y} Q${(wtF.x + wtR.x) / 2},${(wtR.y + wtR.y) / 2 - 4} ${wtR.x},${wtR.y}`}
                           fill="none"
                           stroke="#e0f2fe"
                           strokeWidth="1.5"
@@ -978,9 +1278,9 @@ export const IsometricGeologicalCube: React.FC<IsometricGeologicalCubeProps> = (
 
                         {/* GWT Callout Badge */}
                         <g transform={`translate(${wtR.x + 10}, ${wtR.y - 10})`}>
-                          <rect x="0" y="0" width="130" height="22" rx="4" fill="#0369a1" stroke="#38bdf8" strokeWidth="1" />
-                          <text x="65" y="15" fill="#ffffff" fontSize="9.5" fontWeight="bold" textAnchor="middle" fontFamily="monospace">
-                            🌊 GWT Horizon @ ~3.8m
+                          <rect x="0" y="0" width="145" height="22" rx="4" fill="#0369a1" stroke="#38bdf8" strokeWidth="1" />
+                          <text x="72" y="15" fill="#ffffff" fontSize="9.5" fontWeight="bold" textAnchor="middle" fontFamily="monospace">
+                            🌊 GWT Horizon @ ~{waterTableDepth != null ? waterTableDepth.toFixed(1) : '3.8'}m
                           </text>
                         </g>
                       </g>
@@ -996,7 +1296,7 @@ export const IsometricGeologicalCube: React.FC<IsometricGeologicalCubeProps> = (
             <div className="flex items-center gap-3">
               <span className="font-bold text-slate-300 flex items-center gap-1.5 font-mono text-[11px]">
                 <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-                ACTIVE FOCUS:
+                ACTIVE 3D LAYER:
               </span>
               <span className="font-extrabold text-amber-400 font-mono">
                 {currentLayer.name}
@@ -1011,14 +1311,128 @@ export const IsometricGeologicalCube: React.FC<IsometricGeologicalCubeProps> = (
               <span>•</span>
               <span>Thickness: <strong className="text-amber-300">{currentLayer.thicknessDisplay}</strong></span>
               <span>•</span>
-              <span className="text-slate-500">Click any layer in 3D block to inspect</span>
+              <span className="text-slate-500">Click any layer in 3D or Borehole column to select</span>
             </div>
           </div>
         </div>
 
-        {/* Right Engineering Detail HUD & Equipment Specifications */}
-        <div className="lg:col-span-4 bg-slate-900 border-t lg:border-t-0 lg:border-l border-slate-800 p-5 flex flex-col justify-between overflow-y-auto max-h-[780px]">
-          <div className="space-y-5">
+        {/* SIDE-BY-SIDE BOREHOLE STRATA COLUMN (Visible in Dual View Mode) */}
+        {layoutMode === 'dual' && (
+          <div className="lg:col-span-3 bg-slate-950 border-t lg:border-t-0 lg:border-l border-slate-800 p-4 flex flex-col justify-between overflow-y-auto max-h-[780px]">
+            <div>
+              <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+                <div className="flex items-center gap-2">
+                  <div className="p-1.5 rounded-lg bg-amber-500/20 text-amber-400 border border-amber-500/30">
+                    <Drill className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <span className="text-xs font-black text-amber-400 uppercase tracking-wider block font-mono">
+                      Borehole Core Column
+                    </span>
+                    <span className="text-[10px] text-slate-400">Vertical Core Profile (Synced)</span>
+                  </div>
+                </div>
+                <span className="text-[10px] text-slate-300 font-mono font-bold bg-slate-900 px-2 py-0.5 rounded border border-slate-800">
+                  0.0m → {activeLayers[activeLayers.length - 1]?.bottom_m.toFixed(1)}m
+                </span>
+              </div>
+
+              {/* Dual-Track Visualizer: Depth Scale + Colored Stratum Blocks */}
+              <div className="mt-4 flex gap-2.5 relative">
+                {/* Depth Scale Ruler */}
+                <div className="w-11 shrink-0 flex flex-col justify-between py-1 text-[10px] font-mono text-slate-400 border-r border-slate-800 pr-1.5 select-none">
+                  <div className="flex items-center justify-between">
+                    <span className="text-amber-400 font-bold">0.0m</span>
+                    <span className="text-slate-600">-</span>
+                  </div>
+                  {activeLayers.map((l, i) => (
+                    <div key={i} className="flex items-center justify-between">
+                      <span className="text-slate-300">{l.bottom_m.toFixed(1)}m</span>
+                      <span className="text-slate-600">-</span>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Stacked Colorful Geological Layers matching 3D Model 100% */}
+                <div className="flex-1 space-y-2 relative">
+                  {activeLayers.map((layer, idx) => {
+                    const isSelected = activeIndex === idx;
+                    const theme = getStrataTheme(layer.materialKey);
+                    const clsBadge = getExcavabilityBadge(layer.excavabilityClassNum);
+
+                    return (
+                      <div
+                        key={layer.id}
+                        onClick={() => handleSelectLayer(idx)}
+                        className={`p-2.5 rounded-xl border cursor-pointer transition-all duration-200 relative overflow-hidden group ${
+                          isSelected
+                            ? `ring-4 ring-amber-400 border-white shadow-xl scale-[1.02] bg-gradient-to-r ${theme.gradient}`
+                            : `border-slate-700/80 hover:border-slate-500 hover:shadow-md bg-gradient-to-r ${theme.gradient} opacity-90 hover:opacity-100`
+                        }`}
+                        style={{
+                          minHeight: `${Math.max(68, (layer.thickness_m || 1) * 32)}px`,
+                        }}
+                      >
+                        <div className="absolute inset-0 bg-black/15 pointer-events-none" />
+
+                        <div className="flex items-start justify-between relative z-10 gap-2">
+                          <div className="flex items-center gap-1.5 min-w-0">
+                            <span className="text-base drop-shadow-sm shrink-0">{theme.iconSymbol}</span>
+                            <div className="min-w-0">
+                              <h4 className="font-black text-xs text-white drop-shadow-md truncate tracking-tight">
+                                {layer.name}
+                              </h4>
+                              <span className="text-[9px] text-white/80 font-medium block truncate">
+                                {theme.categoryLabel}
+                              </span>
+                            </div>
+                          </div>
+
+                          <div className="text-right shrink-0">
+                            <span className="text-[10px] font-mono font-bold text-white bg-black/50 px-1.5 py-0.5 rounded border border-white/20">
+                              {layer.depthRangeDisplay.replace(' EGL', '')}
+                            </span>
+                            <span className="text-[9px] text-white/80 font-mono block mt-0.5">
+                              ({layer.thicknessDisplay})
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Layer parameters footer */}
+                        <div className="mt-2 flex items-center justify-between gap-1 relative z-10 pt-1.5 border-t border-white/20 text-white">
+                          <span className={`text-[9px] font-black px-1.5 py-0.5 rounded shadow-xs ${clsBadge.bg}`}>
+                            Class {layer.excavabilityClassNum}
+                          </span>
+                          <div className="flex items-center gap-1.5 text-[9px] font-mono text-white/90">
+                            {layer.ucsMpa && (
+                              <span className="bg-black/40 px-1 py-0.5 rounded border border-white/20">
+                                UCS {layer.ucsMpa}M
+                              </span>
+                            )}
+                            {layer.bulkingFactor && (
+                              <span className="bg-black/40 px-1 py-0.5 rounded border border-white/20">
+                                {layer.bulkingFactor}x
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-4 pt-3 border-t border-slate-800 text-[10px] text-slate-400 flex items-center justify-between">
+              <span className="text-amber-400 font-medium">▲ Ground Level 0.0m</span>
+              <span className="text-slate-300 font-bold">Bedrock Refusal ▼</span>
+            </div>
+          </div>
+        )}
+
+        {/* Right Engineering Detail HUD & Machinery Specifications */}
+        <div className={`${layoutMode === 'dual' ? 'lg:col-span-4' : 'lg:col-span-4'} bg-slate-900 border-t lg:border-t-0 lg:border-l border-slate-800 p-5 flex flex-col justify-between overflow-y-auto max-h-[780px]`}>
+          <div className="space-y-4">
             {/* Header of selected layer */}
             <div>
               <div className="flex items-center justify-between">
@@ -1030,10 +1444,11 @@ export const IsometricGeologicalCube: React.FC<IsometricGeologicalCubeProps> = (
                 </span>
               </div>
 
-              <h3 className="text-lg font-black text-white mt-1.5 leading-snug">
-                {currentLayer.name}
+              <h3 className="text-lg font-black text-white mt-1.5 leading-snug flex items-center gap-2">
+                <span>{getStrataTheme(currentLayer.materialKey).iconSymbol}</span>
+                <span>{currentLayer.name}</span>
               </h3>
-              <p className="text-xs text-slate-400 mt-1 leading-relaxed">
+              <p className="text-xs text-slate-400 mt-0.5 leading-relaxed">
                 {currentLayer.subtitle}
               </p>
             </div>
@@ -1079,16 +1494,16 @@ export const IsometricGeologicalCube: React.FC<IsometricGeologicalCubeProps> = (
 
               <div className="bg-slate-950 p-2.5 rounded-xl border border-slate-800">
                 <span className="text-[10px] uppercase font-semibold text-slate-500 block">
-                  Strength / CBR / UCS
+                  Strength / UCS / SPT
                 </span>
                 <div className="text-sm font-black text-emerald-400 mt-0.5 font-mono">
-                  {currentLayer.ucsMpa ? `${currentLayer.ucsMpa} MPa UCS` : currentLayer.cbrPct ? `CBR ${currentLayer.cbrPct}%` : 'Standard Soil'}
+                  {currentLayer.ucsMpa ? `${currentLayer.ucsMpa} MPa UCS` : currentLayer.specs.compaction || 'In-Situ Core'}
                 </div>
               </div>
 
               <div className="bg-slate-950 p-2.5 rounded-xl border border-slate-800">
                 <span className="text-[10px] uppercase font-semibold text-slate-500 block">
-                  Permeability / GWT
+                  Water Horizon
                 </span>
                 <div className="text-sm font-black text-cyan-400 mt-0.5 font-mono truncate" title={currentLayer.specs.permeability}>
                   {currentLayer.specs.permeability}
@@ -1099,7 +1514,7 @@ export const IsometricGeologicalCube: React.FC<IsometricGeologicalCubeProps> = (
             {/* Engineering Description */}
             <div className="bg-slate-950/60 p-3.5 rounded-xl border border-slate-800/80">
               <span className="text-[11px] font-bold text-slate-300 block mb-1">
-                Technical Specification & Geological Matrix:
+                Technical Specification & Borelog Notes:
               </span>
               <p className="text-xs text-slate-300 leading-relaxed">
                 {currentLayer.description}
@@ -1143,7 +1558,6 @@ export const IsometricGeologicalCube: React.FC<IsometricGeologicalCubeProps> = (
                         alt={v.label}
                         className="w-12 h-10 object-cover rounded-lg border border-slate-700 shrink-0"
                         onError={(e) => {
-                          // fallback if image fails
                           (e.target as HTMLElement).style.display = 'none';
                         }}
                       />
@@ -1168,9 +1582,9 @@ export const IsometricGeologicalCube: React.FC<IsometricGeologicalCubeProps> = (
                 {activeLayers.map((l, i) => (
                   <button
                     key={l.id}
-                    onClick={() => setSelectedLayerId(l.id)}
+                    onClick={() => handleSelectLayer(i)}
                     className={`px-2 py-1 rounded-md text-[10px] font-mono font-bold transition-all ${
-                      l.id === currentLayer.id
+                      i === activeIndex
                         ? 'bg-amber-400 text-slate-950 shadow-xs'
                         : 'bg-slate-950 hover:bg-slate-800 text-slate-400 border border-slate-800'
                     }`}
@@ -1182,11 +1596,21 @@ export const IsometricGeologicalCube: React.FC<IsometricGeologicalCubeProps> = (
             </div>
           </div>
 
-          {/* Bottom Export / Snapshot actions */}
+          {/* Bottom Export & Tab Navigation actions */}
           <div className="pt-4 border-t border-slate-800 mt-5 flex items-center justify-between">
-            <span className="text-[10px] text-slate-500 font-mono">
-              Scale: 1:50 True Isometric BIM
-            </span>
+            {onNavigateToStrataTab ? (
+              <button
+                onClick={onNavigateToStrataTab}
+                className="text-[11px] text-amber-400 hover:text-amber-300 font-semibold flex items-center gap-1"
+              >
+                Full Borehole Log Table <ChevronRight className="w-3 h-3" />
+              </button>
+            ) : (
+              <span className="text-[10px] text-slate-500 font-mono">
+                1:50 True Isometric BIM
+              </span>
+            )}
+
             <button
               onClick={() => {
                 window.print();
@@ -1194,7 +1618,7 @@ export const IsometricGeologicalCube: React.FC<IsometricGeologicalCubeProps> = (
               className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold flex items-center gap-1.5 border border-slate-700 transition-colors"
             >
               <Download className="w-3.5 h-3.5 text-amber-400" />
-              Export 3D CAD/Report View
+              Export 3D Strata View
             </button>
           </div>
         </div>

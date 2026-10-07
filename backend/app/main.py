@@ -48,6 +48,8 @@ try:
             conn.execute(text("ALTER TABLE geotechnical_reports ADD COLUMN analysis_params_json TEXT"))
         if "summary_json" not in geo_cols:
             conn.execute(text("ALTER TABLE geotechnical_reports ADD COLUMN summary_json TEXT"))
+        if "intelligence_data_json" not in geo_cols:
+            conn.execute(text("ALTER TABLE geotechnical_reports ADD COLUMN intelligence_data_json TEXT"))
         conn.commit()
 except Exception as mig_err:
     print(f"Migration note: {mig_err}")

@@ -216,7 +216,7 @@ def extract_text_from_file(content: bytes, filename: str) -> Tuple[str, List[str
 # ---------------------------------------------------------------------------
 
 _DEPTH_RANGE = re.compile(
-    r"(?<![\d.])(\d{1,2}(?:\.\d{1,2})?)\s*(?:m(?:trs?|eters?|etres?)?\.?)?\s*(?:-|–|—|to)\s*(\d{1,2}(?:\.\d{1,2})?)\s*(?:m(?:trs?|eters?|etres?)?\b\.?)?",
+    r"(?<![\d.])(\d{1,2}(?:\.\d{1,2})?)\s*(?:m(?:trs?|eters?|etres?)?\.?)?\s*(?:-|–|—|to|\|)\s*(\d{1,2}(?:\.\d{1,2})?)\s*(?:m(?:trs?|eters?|etres?)?\b\.?)?",
     re.IGNORECASE,
 )
 _RQD = re.compile(r"\brqd\b[^\d\n]{0,15}(\d{1,3}(?:\.\d+)?)\s*%?", re.IGNORECASE)
@@ -431,13 +431,14 @@ def parse_geotechnical_text(raw_text: str, target_depth_m: float) -> Dict[str, A
                 continue
             if not (0 <= top < bottom <= 60) or bottom - top > 40:
                 continue
-            rest = line[m.end():]
-            context = rest
-            if len(re.sub(r"[^A-Za-z]", "", rest)) < 4 and idx + 1 < len(lines):
-                context = rest + " " + lines[idx + 1]
+            context = line
+            if len(re.sub(r"[^A-Za-z]", "", context)) < 4 and idx + 1 < len(lines):
+                context = line + " " + lines[idx + 1]
             mat = _detect_material(context)
+            if not mat and idx > 0:
+                mat = _detect_material(lines[idx - 1] + " " + line)
             if mat:
-                raw_intervals.append((top, bottom, mat, line + (" " + lines[idx + 1] if context != rest else "")))
+                raw_intervals.append((top, bottom, mat, line + (" " + lines[idx + 1] if context != line else "")))
                 break  # one interval per line
 
     layers: List[Dict[str, Any]] = []

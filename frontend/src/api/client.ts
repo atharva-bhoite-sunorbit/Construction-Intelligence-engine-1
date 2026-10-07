@@ -279,8 +279,17 @@ export const apiClient = {
     return res.data;
   },
 
-  parseSoilReport: async (rawText: string, filename?: string): Promise<any> => {
-    const res = await api.post('/api/environmental-analysis/parse-report', { raw_text: rawText, filename });
+  parseSoilReport: async (input: string | File, filename?: string): Promise<any> => {
+    if (input instanceof File) {
+      const formData = new FormData();
+      formData.append('file', input);
+      if (filename) formData.append('filename', filename);
+      const res = await api.post('/api/environmental-analysis/parse-report', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+      return res.data;
+    }
+    const res = await api.post('/api/environmental-analysis/parse-report', { raw_text: input, filename });
     return res.data;
   },
 
@@ -337,6 +346,47 @@ export const apiClient = {
 
   getGeotechnicalSampleReports: async (projectId: number): Promise<SampleGeotechReport[]> => {
     const res = await api.get(`/api/projects/${projectId}/geotechnical/sample-reports`);
+    return res.data;
+  },
+
+  // Geotechnical Intelligence Master REST Endpoints
+  uploadGeotechIntelligence: async (formData: FormData): Promise<any> => {
+    const res = await api.post('/api/geotechnical/upload', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+    return res.data;
+  },
+
+  getAllGeotechReports: async (projectId?: number): Promise<any[]> => {
+    const res = await api.get('/api/geotechnical/reports', { params: { project_id: projectId } });
+    return res.data;
+  },
+
+  getGeotechIntelligence: async (reportId: string | number): Promise<any> => {
+    const res = await api.get(`/api/geotechnical/${reportId}`);
+    return res.data;
+  },
+
+  exportGeotechPDF: async (reportId: string | number): Promise<Blob> => {
+    const res = await api.post(`/api/geotechnical/${reportId}/export/pdf`, {}, {
+      responseType: 'blob'
+    });
+    return res.data;
+  },
+
+  exportGeotechExcel: async (reportId: string | number): Promise<Blob> => {
+    const res = await api.post(`/api/geotechnical/${reportId}/export/excel`, {}, {
+      responseType: 'blob'
+    });
+    return res.data;
+  },
+
+  compareGeotechReports: async (reportA: string, reportB: string): Promise<any> => {
+    const res = await api.get('/api/geotechnical/compare', {
+      params: { report_a: reportA, report_b: reportB }
+    });
     return res.data;
   }
 };

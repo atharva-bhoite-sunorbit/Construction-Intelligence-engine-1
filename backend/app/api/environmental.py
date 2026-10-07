@@ -1,7 +1,7 @@
 import json
 from typing import List, Optional
 from datetime import date
-from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form
+from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form, Request
 from sqlalchemy.orm import Session
 from backend.app.database.connection import get_db
 from backend.app.models.all_models import SiteEnvironmentalLog, SiteValidationRecord, Project, User, Activity
@@ -10,6 +10,7 @@ from backend.app.schemas.all_schemas import (
     ValidationChecklistSubmission
 )
 from backend.app.services.weather_soil_service import WeatherSoilService
+from backend.app.services.geotechnical_service import extract_text_from_file
 from backend.app.services.audit_service import AuditService
 from backend.app.utils.security import get_current_user_optional
 
@@ -108,14 +109,39 @@ def get_environmental_analysis_history(project_id: int, db: Session = Depends(ge
     return [_format_env_log_response(log) for log in logs]
 
 @router.post("/api/environmental-analysis/parse-report")
-def parse_soil_report(payload: dict):
+async def parse_soil_report(request: Request):
     """
-    Parses pasted text or simulated document extract from a soil level report,
-    returning structured geotechnical parameters.
+    Parses uploaded geotechnical file (PDF, DOCX, XLSX, TXT, CSV) or pasted text,
+    dynamically extracting soil properties, bearing capacities, water table, compaction,
+    and structured geotechnical parameters.
     """
-    raw_text = payload.get("raw_text", "")
-    filename = payload.get("filename")
+    content_type = request.headers.get("content-type", "")
+    raw_text = ""
+    filename = None
+
+    if "multipart/form-data" in content_type:
+        form = await request.form()
+        uploaded_file = form.get("file")
+        raw_text = str(form.get("raw_text") or "")
+        filename = form.get("filename")
+
+        if uploaded_file and hasattr(uploaded_file, "read"):
+            filename = getattr(uploaded_file, "filename", filename)
+            content = await uploaded_file.read()
+            extracted_text, _ = extract_text_from_file(content, filename or "document.txt")
+            if extracted_text and extracted_text.strip():
+                raw_text = extracted_text.strip()
+    else:
+        try:
+            payload = await request.json()
+            raw_text = payload.get("raw_text", "")
+            filename = payload.get("filename")
+        except Exception:
+            raw_text = ""
+
     parsed = WeatherSoilService.parse_soil_report_content(raw_text=raw_text, filename=filename)
+    parsed["raw_text"] = raw_text
+    parsed["filename"] = filename
     return parsed
 
 # Validation endpoints

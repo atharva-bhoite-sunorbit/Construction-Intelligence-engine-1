@@ -382,6 +382,7 @@ export interface StrataLayer {
   bank_volume_cum?: number;
   loose_volume_cum?: number;
   below_water_table?: boolean;
+  recommended_machinery?: string[];
 }
 
 export interface MachineryRecommendation {
@@ -492,4 +493,139 @@ export interface SampleGeotechReport {
   water_table: number;
   text: string;
 }
+
+export interface SourceGroundedField {
+  value: any;
+  display: string;
+  unit?: string;
+  status: 'FOUND' | 'MISSING' | 'REQUIRES_DATA';
+  source_type?: 'REPORT' | 'CALCULATED' | 'AI_INTERPRETATION' | 'AI_RECOMMENDATION' | 'USER_ENTERED' | 'REQUIRES_DATA' | null;
+  source_page?: number | null;
+  source_section?: string | null;
+  source_text?: string | null;
+  confidence?: 'HIGH' | 'MEDIUM' | 'LOW' | null;
+  method?: string;
+  note?: string;
+  formula?: string;
+}
+
+export interface BoreholeRecord {
+  borehole_id: string;
+  ground_level: number;
+  cwr_depth: number;
+  hard_rock_depth: number;
+  termination_depth: number;
+  groundwater_depth: string;
+  layer_sequence: string[];
+  layers: Array<{
+    layer_index: number;
+    layer_name: string;
+    top_depth: number;
+    bottom_depth: number;
+    thickness: number;
+    description?: string;
+    material_type: string;
+    spt_n?: string;
+    core_recovery?: string;
+    rqd?: string;
+    ucs?: string;
+    color?: string;
+    is_rock: boolean;
+  }>;
+  source_reference: string;
+  confidence: string;
+}
+
+export interface GeotechnicalRiskRecord {
+  risk_title: string;
+  severity: 'HIGH' | 'MEDIUM' | 'LOW';
+  category: string;
+  reason: string;
+  source: string;
+  source_type: string;
+  recommended_action: string;
+}
+
+export interface GeotechnicalAuditRecord {
+  audit_id: string;
+  section: string;
+  parameter: string;
+  extracted_value: string;
+  source_type: string;
+  source_page?: number | null;
+  source_section?: string | null;
+  source_text_snippet?: string | null;
+  confidence: string;
+  extraction_method: string;
+  timestamp: string;
+}
+
+export interface GeotechnicalIntelligenceDoc {
+  report_id: string;
+  filename: string;
+  created_at: string;
+  project_id: number;
+  project_information: Record<string, SourceGroundedField>;
+  investigation_information: Record<string, SourceGroundedField>;
+  boreholes: BoreholeRecord[];
+  stratigraphy: Array<{
+    layer_title: string;
+    layer_name: string;
+    top_depth: number;
+    bottom_depth: number;
+    thickness: number;
+    description: string;
+    material_type: string;
+    source_page: number;
+    source_text: string;
+    confidence: string;
+  }>;
+  soil_analysis: Record<string, SourceGroundedField>;
+  rock_analysis: Record<string, SourceGroundedField>;
+  groundwater_analysis: Record<string, SourceGroundedField>;
+  foundation_recommendations: Record<string, SourceGroundedField>;
+  excavation_analysis: Record<string, SourceGroundedField>;
+  concrete_protection: Record<string, SourceGroundedField>;
+  laboratory_results: Array<{
+    test_category: string;
+    sample_id: string;
+    depth_m: string;
+    parameters: Array<{ name: string; value: string; unit: string; limit: string }>;
+    source_page: number;
+    confidence: string;
+  }>;
+  report_calculations: Array<{
+    calculation_name: string;
+    formula: string;
+    input_parameters: Record<string, string>;
+    result: string;
+    source_page: number;
+    source_section: string;
+    confidence: string;
+  }>;
+  validation: {
+    is_valid: boolean;
+    status: string;
+    passed_checks: string[];
+    warnings: Array<{ check: string; detail: string }>;
+    missing_items: Array<{ field: string; reason: string }>;
+    validation_timestamp: string;
+  };
+  risks: GeotechnicalRiskRecord[];
+  missing_data: Array<{
+    parameter: string;
+    category: string;
+    status: string;
+    why_needed: string;
+    recommended_source: string;
+    action_type: string;
+  }>;
+  audit_trail: GeotechnicalAuditRecord[];
+  strata_layers?: StrataLayer[];
+  recommended_machinery?: MachineryRecommendation[];
+  planned_activities?: PlannedActivity[];
+  summary?: GeotechnicalSummary;
+  rock_types?: any[];
+}
+
 

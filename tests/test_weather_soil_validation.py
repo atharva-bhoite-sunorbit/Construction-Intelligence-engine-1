@@ -32,6 +32,31 @@ def test_soil_report_parser():
     assert parsed["water_table_depth_m"] == 1.7
     assert parsed["compaction_percent"] == 91.5
     assert parsed["moisture_content_percent"] == 23.5
+    assert parsed["geotechnical_details"] is not None
+    assert parsed["geotechnical_details"]["investigation_points"][0]["net_sbc_kpa"] == 135.0
+    assert parsed["geotechnical_details"]["investigation_points"][0]["depth_m"] == 1.7
+
+def test_dynamic_soil_report_parsing_changes():
+    # Test that when input changes to another soil type and bearing capacity, parsing changes dynamically
+    sample_sand = """
+    SOIL MECHANICS INVESTIGATION - BOREHOLE 08
+    Client: Metro Rail Corporation
+    Stratum: Dense Sand & Gravel Mix
+    Safe Bearing Capacity: 275.0 kN/m2
+    Water Table: Groundwater struck at 4.2 meters depth
+    Compaction: 97.0% Modified Proctor
+    Moisture content: 11.2%
+    """
+    parsed_sand = WeatherSoilService.parse_soil_report_content(sample_sand, "sand_borehole_08.txt")
+    assert "Dense Sand" in parsed_sand["soil_type"]
+    assert parsed_sand["safe_bearing_capacity_kpa"] == 275.0
+    assert parsed_sand["water_table_depth_m"] == 4.2
+    assert parsed_sand["compaction_percent"] == 97.0
+    assert parsed_sand["geotechnical_details"] is not None
+    assert parsed_sand["geotechnical_details"]["report_metadata"]["client"] == "Metro Rail Corporation"
+    assert parsed_sand["geotechnical_details"]["investigation_points"][0]["net_sbc_kpa"] == 275.0
+    # Grain size must reflect sand/gravel, not static clay
+    assert "Gravel" in parsed_sand["geotechnical_details"]["grain_size_distribution"]["sieve_4_75mm"]
 
 def test_weather_and_soil_analysis_high_wind_and_soil_deficit(db):
     # Retrieve or create a project

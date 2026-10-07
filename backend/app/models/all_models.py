@@ -607,6 +607,7 @@ class GeotechnicalReport(Base):
     hazard_controls_json = Column(Text, nullable=True)
     analysis_params_json = Column(Text, nullable=True)
     summary_json = Column(Text, nullable=True)
+    intelligence_data_json = Column(Text, nullable=True)  # Complete source-grounded Geotechnical Intelligence payload
 
     status = Column(String(50), default="ANALYZED")  # ANALYZED, PUSHED_TO_SCHEDULE
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
