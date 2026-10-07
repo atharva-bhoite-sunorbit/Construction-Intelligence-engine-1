@@ -119,11 +119,52 @@ Construction-1/
 
 ### 3. Running Automated Tests
 
-Run the backend test suite:
+Run the comprehensive backend test suite:
 ```bash
 pytest
 ```
-Expected output: `8 passed` across unit and integration tests.
+Expected output: `27 passed` across CPM scheduling, ML prediction, Geotechnical Intelligence, and external API key integration test suites.
+
+---
+
+## 🔒 Geotechnical Intelligence External API (v1)
+
+A dedicated, cryptographically hashed API-key secured namespace under `/api/v1/geotechnical/` for external construction systems (e.g., Construction ERPs, PMIS, Civil engineering software).
+
+### Authentication
+Send your provisioned API key in the `Authorization` header:
+```http
+Authorization: Bearer geo_live_xxxxxxxxxxxxxxxxxxxxxxxxx
+```
+or via the `X-API-Key` header:
+```http
+X-API-Key: geo_live_xxxxxxxxxxxxxxxxxxxxxxxxx
+```
+
+### Security Features
+- **SHA-256 Hashing**: Plaintext keys are never stored in the database.
+- **Granular Scopes**: `geotechnical:upload`, `geotechnical:read`, `geotechnical:analyze`, `geotechnical:alerts`, `geotechnical:recommendations`, `geotechnical:admin`.
+- **Perimeter Boundary Isolation**: External API keys are strictly confined to `/api/v1/geotechnical/*` and cannot access internal platform modules (`/civil`, `/electrical`, `/admin`, `/users`).
+- **Multi-Tenant Isolation**: Complete isolation of reports and data across client tenants.
+- **Rate Limiting & Audit Logging**: Sliding 60-second window rate limiting with full request audit logging.
+
+### Endpoints Summary
+
+| Method | Endpoint | Required Scope | Description |
+| :--- | :--- | :--- | :--- |
+| `POST` | `/api/v1/geotechnical/reports/upload` | `geotechnical:upload` | Upload PDF/DOCX/TXT/XLSX report with automated parsing & unique ID generation. |
+| `GET` | `/api/v1/geotechnical/reports/{report_id}` | `geotechnical:read` | Overview with boreholes count, depths, soil summary & alerts. |
+| `GET` | `/api/v1/geotechnical/reports/{report_id}/boreholes` | `geotechnical:read` | Deep borehole exploration logs, coordinates, and SPT profiles. |
+| `GET` | `/api/v1/geotechnical/reports/{report_id}/soil-profile` | `geotechnical:read` | USCS strata layers, N-values, RQD, UCS, and laboratory results. |
+| `GET` | `/api/v1/geotechnical/reports/{report_id}/alerts` | `geotechnical:alerts` | Geotechnical hazard alerts (groundwater, liquefaction, rock hardness). |
+| `GET` | `/api/v1/geotechnical/reports/{report_id}/foundation-recommendations` | `geotechnical:recommendations` | Raft vs. Pile recommendations, SBC (kPa), settlement criteria, IS codes. |
+| `POST` | `/api/v1/geotechnical/reports/{report_id}/analyze` | `geotechnical:analyze` | Trigger AI/ML risk computation and excavation fleet sizing. |
+| `GET` | `/api/v1/geotechnical/reports/{report_id}/analysis` | `geotechnical:read` | Full engineering analysis report and mitigation plan. |
+| `POST` | `/api/v1/geotechnical/keys` | `geotechnical:admin` | Provision a new external client API key. |
+| `GET` | `/api/v1/geotechnical/keys` | `geotechnical:admin` | List client API keys (masked, secrets never returned). |
+| `POST` | `/api/v1/geotechnical/keys/{key_id}/rotate` | `geotechnical:admin` | Rotate an existing API key and revoke the previous one. |
+| `POST` | `/api/v1/geotechnical/keys/{key_id}/revoke` | `geotechnical:admin` | Immediately revoke an API key. |
+| `GET` | `/api/v1/geotechnical/audit-logs` | `geotechnical:read` | Query request audit history for the authenticated tenant. |
 
 ---
 
@@ -136,7 +177,14 @@ Expected output: `8 passed` across unit and integration tests.
 | **Site Manager** | `sm@construction.ai` | `sm123` |
 | **Lead Engineer** | `eng@construction.ai` | `eng123` |
 
+### Pre-provisioned Demo Geotechnical API Key
+- **Client**: Construction ERP
+- **Tenant ID**: `tenant_erp_01`
+- **Key Prefix**: `geo_live_C3eV...7HTw`
+- **Scopes**: `geotechnical:upload`, `geotechnical:read`, `geotechnical:analyze`, `geotechnical:alerts`, `geotechnical:recommendations`, `geotechnical:admin`
+
 ---
 
 ## 📄 License
 This project is proprietary and confidential. All rights reserved.
+
