@@ -14,11 +14,19 @@ import datetime
 from typing import Any, Dict, List, Optional, Tuple
 
 from fastapi import Request, Header, HTTPException, status, Depends
-from fastapi.security import SecurityScopes
+from fastapi.security import SecurityScopes, HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 
 from backend.app.database.connection import get_db, SessionLocal
 from backend.app.models.all_models import GeotechAPIKey, GeotechAPIAuditLog
+
+
+# OpenAPI Security Scheme for Swagger UI
+geotech_bearer_scheme = HTTPBearer(
+    auto_error=False,
+    scheme_name="GeotechAPIKeyBearer",
+    description="Enter external API key starting with 'geo_live_' or 'geo_test_'"
+)
 
 
 # In-memory thread-safe rate limiter (sliding 60-second window)
@@ -251,6 +259,7 @@ def extract_raw_api_key(
 def authenticate_geotech_key(
     security_scopes: SecurityScopes,
     request: Request,
+    auth_creds: Optional[HTTPAuthorizationCredentials] = Depends(geotech_bearer_scheme),
     authorization: Optional[str] = Header(None, alias="Authorization"),
     x_api_key: Optional[str] = Header(None, alias="X-API-Key"),
     db: Session = Depends(get_db)
@@ -260,7 +269,17 @@ def authenticate_geotech_key(
     verifies expiration, checks rate limits, enforces required scopes, and logs requests.
     """
     start_time = time.time()
-    raw_key = extract_raw_api_key(authorization=authorization, x_api_key=x_api_key)
+    if auth_creds and auth_creds.credentials:
+        raw_key = auth_creds.credentials
+    else:
+        raw_key = extract_raw_api_key(authorization=authorization, x_api_key=x_api_key)
+
+    if not (raw_key.startswith("geo_live_") or raw_key.startswith("geo_test_")):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid API key format. External keys must begin with 'geo_live_' or 'geo_test_'."
+        )
+
     incoming_hash = hash_api_key(raw_key)
 
     key_record = db.query(GeotechAPIKey).filter(GeotechAPIKey.key_hash == incoming_hash).first()
