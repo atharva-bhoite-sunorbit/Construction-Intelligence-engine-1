@@ -19,8 +19,11 @@ class TemplateEngine:
                 "pre_construction": [
                     {"name": "Site Mobilization & Clearing", "phase": "Pre-Construction", "pkg": "Site Mobilization", "dur": 7, "qty": 1, "unit": "lot", "labour": 8, "mat": "Temporary Fencing, Signage", "eq": "Dozer"},
                     {"name": "Site Topographic Survey & Setting Out", "phase": "Pre-Construction", "pkg": "Site Survey", "dur": 4, "qty": 1, "unit": "lot", "labour": 4, "mat": "Survey Markers", "eq": "Total Station"},
+                    {"name": "Geotechnical Subsurface Borehole Drilling & Soil Profiling", "phase": "Pre-Construction", "pkg": "Geotechnical", "dur": 6, "qty": 4, "unit": "boreholes", "labour": 6, "mat": "Core Boxes, Soil Samplers", "eq": "Rotary Core Drill Rig"},
+                    {"name": "SPT Standard Penetration & Strata Lab Testing", "phase": "Pre-Construction", "pkg": "Geotechnical", "dur": 5, "qty": 12, "unit": "tests", "labour": 4, "mat": "Lab Sample Jars", "eq": "SPT Hammer, Lab Compression Rig"},
                     {"name": "Temporary Facilities & Site Offices", "phase": "Pre-Construction", "pkg": "Temporary Facilities", "dur": 10, "qty": 1, "unit": "lot", "labour": 12, "mat": "Portacabins, Utilities", "eq": "Forklift"},
-                    {"name": "Bulk Excavation & Shoring", "phase": "Pre-Construction", "pkg": "Excavation", "dur": 18, "qty": 4500, "unit": "m3", "labour": 10, "mat": "Shoring Piles, Soil Nails", "eq": "Excavator, Dump Truck"},
+                    {"name": "Bulk Excavation & Perimeter Shoring Piles", "phase": "Pre-Construction", "pkg": "Excavation", "dur": 18, "qty": 4500, "unit": "m3", "labour": 10, "mat": "Shoring Piles, Soil Nails", "eq": "Excavator, Dump Truck"},
+                    {"name": "Excavation Pit Dewatering & Subgrade Strata Preparation", "phase": "Pre-Construction", "pkg": "Excavation", "dur": 8, "qty": 4500, "unit": "m3", "labour": 6, "mat": "Dewatering Pipes, Gravel Bedding", "eq": "Submersible Slurry Pumps, Roller"},
                 ],
                 "foundation": [
                     {"name": "PCC (Plain Cement Concrete) Bedding", "phase": "Substructure", "pkg": "Foundation", "dur": 6, "qty": 350, "unit": "m3", "labour": 14, "mat": "Concrete M15", "eq": "Transit Mixer"},
@@ -52,7 +55,10 @@ class TemplateEngine:
         elif "factory" in c_type or "industrial" in c_type:
             return {
                 "sequence": [
-                    {"name": "Site Preparation & Heavy Earthworks", "phase": "Pre-Construction", "pkg": "Site Prep", "dur": 10, "qty": 5000, "unit": "sq.m", "labour": 12, "mat": "Granular Sub-base", "eq": "Grader, Roller"},
+                    {"name": "Site Mobilization & Fencing", "phase": "Pre-Construction", "pkg": "Mobilization", "dur": 6, "qty": 1, "unit": "lot", "labour": 6, "mat": "Fencing, Signage", "eq": "Truck"},
+                    {"name": "Geotechnical Subsurface Drilling & Plate Load Testing", "phase": "Pre-Construction", "pkg": "Geotechnical", "dur": 6, "qty": 1, "unit": "lot", "labour": 5, "mat": "Bearing Plates, Core Barrels", "eq": "Rotary Drill Rig, Reaction Beam"},
+                    {"name": "Site Preparation & Heavy Excavation Earthworks", "phase": "Pre-Construction", "pkg": "Excavation", "dur": 12, "qty": 5000, "unit": "m3", "labour": 12, "mat": "Granular Sub-base", "eq": "Excavator, Grader, Roller, Dumper"},
+                    {"name": "Excavation Pit Dewatering & Subgrade Compaction", "phase": "Pre-Construction", "pkg": "Excavation", "dur": 5, "qty": 5000, "unit": "sq.m", "labour": 8, "mat": "Compaction Gravel", "eq": "Vibratory Roller, Dewatering Pump"},
                     {"name": "Deep Footings & Heavy Machine Foundations", "phase": "Substructure", "pkg": "Foundation", "dur": 18, "qty": 1200, "unit": "m3", "labour": 24, "mat": "M40 Concrete, Rebar", "eq": "Excavator, Pump"},
                     {"name": "Structural Steel Fabrication & Erection", "phase": "Superstructure", "pkg": "Structural Steel", "dur": 25, "qty": 280, "unit": "tons", "labour": 28, "mat": "Steel Portals, Purlins", "eq": "Heavy Mobile Crane, Boom Lift"},
                     {"name": "Industrial Laser Screed Flooring (FM2 Spec)", "phase": "Superstructure", "pkg": "Industrial Flooring", "dur": 14, "qty": 4500, "unit": "sq.m", "labour": 18, "mat": "Steel Fibres, Hardener, Concrete", "eq": "Laser Screed Machine, Power Floats"},
@@ -68,7 +74,9 @@ class TemplateEngine:
                 "pre_construction": [
                     {"name": "Site Mobilization & Fencing", "phase": "Pre-Construction", "pkg": "Mobilization", "dur": 6, "qty": 1, "unit": "lot", "labour": 8, "mat": "Fencing, Signboards", "eq": "Truck"},
                     {"name": "Site Layout Survey", "phase": "Pre-Construction", "pkg": "Survey", "dur": 3, "qty": 1, "unit": "lot", "labour": 4, "mat": "Pegs, Markers", "eq": "Total Station"},
-                    {"name": "Excavation & Earthwork", "phase": "Pre-Construction", "pkg": "Excavation", "dur": 12, "qty": 1800, "unit": "m3", "labour": 10, "mat": "Gravel", "eq": "Excavator, Dumper"},
+                    {"name": "Geotechnical Soil Borehole Investigation & SPT Testing", "phase": "Pre-Construction", "pkg": "Geotechnical", "dur": 5, "qty": 3, "unit": "boreholes", "labour": 4, "mat": "Sample Liners, Core Boxes", "eq": "Hydraulic Drill Rig"},
+                    {"name": "Bulk Pit Excavation & Earthwork", "phase": "Pre-Construction", "pkg": "Excavation", "dur": 12, "qty": 1800, "unit": "m3", "labour": 10, "mat": "Gravel", "eq": "Excavator, Dumper"},
+                    {"name": "Excavation Shoring & Pit Dewatering Operation", "phase": "Pre-Construction", "pkg": "Excavation", "dur": 6, "qty": 1, "unit": "lot", "labour": 6, "mat": "Trench Shields, Discharge Pipes", "eq": "Dewatering Pumps, Compactor"},
                 ],
                 "foundation": [
                     {"name": "PCC Sub-base", "phase": "Substructure", "pkg": "Foundation", "dur": 5, "qty": 150, "unit": "m3", "labour": 12, "mat": "Concrete M15", "eq": "Transit Mixer"},
@@ -89,6 +97,58 @@ class TemplateEngine:
                     {"name": "Final Cleaning & Handover", "phase": "Handover", "pkg": "Handover", "dur": 5, "qty": 1, "unit": "facility", "labour": 10, "mat": "Cleaning Supplies", "eq": "None"},
                 ]
             }
+
+    @staticmethod
+    def determine_assigned_role(name: str = "", work_package: str = "", phase: str = "", is_critical: bool = False) -> str:
+        """
+        Determines the designated owner role for activity validation:
+        - Site Engineer: Geotechnical investigation, borelog, SPT testing, strata profiling,
+                         excavation, earthwork, shoring, dewatering, subgrade plate load tests.
+        - Admin: Statutory compliance, licenses, surveys, site mobilization, testing & commissioning, handover.
+        - Project Manager: Core structural, foundation, critical path milestones, heavy cranes.
+        - Site Manager: Field operations, masonry, finishes, MEP rough-ins, superstructure works.
+        """
+        nm = (name or "").lower()
+        pkg = (work_package or "").lower()
+        ph = (phase or "").lower()
+
+        # 1. Geotechnical & Excavation Gate -> Site Engineer
+        if (
+            "geotech" in pkg or "geotech" in nm or
+            "soil" in pkg or "soil" in nm or
+            "borehole" in nm or "borelog" in nm or
+            "spt" in nm or "rqd" in nm or "ucs" in nm or
+            "strata" in nm or "stratum" in nm or
+            "excavation" in pkg or "excavation" in nm or
+            "earthwork" in pkg or "earthwork" in nm or
+            "dewatering" in pkg or "dewatering" in nm or
+            "shoring" in pkg or "shoring" in nm or
+            "plate load" in nm or "subgrade" in nm or
+            "muck" in nm or "blasting" in nm or
+            nm.startswith("gx-")
+        ):
+            return "Site Engineer"
+
+        # 2. Statutory, Survey & Admin Handover -> Admin
+        if (
+            "handover" in ph or "survey" in pkg or "survey" in nm or
+            "fencing" in nm or "mobilization" in pkg or "mobilization" in nm or
+            "testing" in pkg or "commissioning" in nm or "compliance" in nm or
+            "snagging" in pkg or "cleaning" in nm
+        ):
+            return "Admin"
+
+        # 3. Core Structural & Heavy Engineering -> Project Manager
+        if (
+            is_critical or
+            "foundation" in pkg or "structure" in pkg or "structural steel" in pkg or
+            "footing" in nm or "plinth" in nm or "column" in nm or "slab" in nm or
+            "beam" in nm or "crane" in nm or "equipment installation" in pkg
+        ):
+            return "Project Manager"
+
+        # 4. Field Operations -> Site Manager
+        return "Site Manager"
 
     @staticmethod
     def generate_plan_for_project(
@@ -125,6 +185,7 @@ class TemplateEngine:
                     phase=item["phase"],
                     work_package=item["pkg"],
                     category=item["pkg"],
+                    assigned_role=TemplateEngine.determine_assigned_role(item["name"], item["pkg"], item["phase"]),
                     building="Main Plant",
                     tower="Unit 1",
                     floor=1,
@@ -172,6 +233,7 @@ class TemplateEngine:
                 phase=item["phase"],
                 work_package=item["pkg"],
                 category="Pre-Construction",
+                assigned_role=TemplateEngine.determine_assigned_role(item["name"], item["pkg"], item["phase"]),
                 building="Common Site",
                 tower="All",
                 floor=0,
@@ -217,6 +279,7 @@ class TemplateEngine:
                     phase=item["phase"],
                     work_package=item["pkg"],
                     category="Foundation",
+                    assigned_role=TemplateEngine.determine_assigned_role(item["name"], item["pkg"], item["phase"]),
                     building="Main",
                     tower=tower_name,
                     floor=0,
@@ -267,6 +330,7 @@ class TemplateEngine:
                         phase=item["phase"],
                         work_package=item["pkg"],
                         category=item["pkg"],
+                        assigned_role=TemplateEngine.determine_assigned_role(item["name"], item["pkg"], item["phase"]),
                         building="Main",
                         tower=tower_name,
                         floor=f,
@@ -326,6 +390,7 @@ class TemplateEngine:
                 phase=item["phase"],
                 work_package=item["pkg"],
                 category="Handover",
+                assigned_role=TemplateEngine.determine_assigned_role(item["name"], item["pkg"], item["phase"]),
                 building="All",
                 tower="All",
                 floor=floors,

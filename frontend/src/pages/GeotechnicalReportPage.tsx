@@ -19,6 +19,8 @@ import { GeotechAuditTrail } from '../components/geotech/GeotechAuditTrail';
 import { ThreeDGeologicalView } from '../components/geotech/ThreeDGeologicalView';
 import { ReportUploadModal } from '../components/geotech/ReportUploadModal';
 import { GeotechnicalCompareModal } from '../components/geotech/GeotechnicalCompareModal';
+import { FiveLayersAndPipelineView } from '../components/geotech/FiveLayersAndPipelineView';
+import { SptAndPropertiesView } from '../components/geotech/SptAndPropertiesView';
 import { VEHICLE_IMAGE_MAP, STRATA_THEMES, getStrataTheme, getExcavabilityBadge } from './GeotechnicalReportPageConstants';
 export { VEHICLE_IMAGE_MAP, STRATA_THEMES, getStrataTheme, getExcavabilityBadge };
 
@@ -42,6 +44,8 @@ export const GeotechnicalReportPage: React.FC<GeotechnicalReportPageProps> = ({
   // Active Main Navigation Tab
   const [activeTab, setActiveTab] = useState<
     | 'overview'
+    | 'five_layers'
+    | 'spt_and_properties'
     | 'boreholes'
     | 'layers'
     | 'machinery'
@@ -59,7 +63,7 @@ export const GeotechnicalReportPage: React.FC<GeotechnicalReportPageProps> = ({
     | 'missing_data'
     | 'audit'
     | 'schedule'
-  >('overview');
+  >('five_layers');
 
   const [enlargedVehicle, setEnlargedVehicle] = useState<any | null>(null);
 
@@ -166,6 +170,35 @@ export const GeotechnicalReportPage: React.FC<GeotechnicalReportPageProps> = ({
     a.href = dataStr;
     a.download = `Geotechnical_Intelligence_${currentIntelDoc.report_id}.json`;
     a.click();
+  };
+
+  const handleExportStandardJSON = () => {
+    if (!currentIntelDoc) return;
+    const stdJson = currentIntelDoc.standard_json || currentIntelDoc.five_intelligence_layers || currentIntelDoc;
+    const dataStr = 'data:text/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(stdJson, null, 2));
+    const a = document.createElement('a');
+    a.href = dataStr;
+    a.download = `Geotechnical_Standard_5Layers_${currentIntelDoc.report_id}.json`;
+    a.click();
+  };
+
+  const [boqSyncStatus, setBoqSyncStatus] = useState<string | null>(null);
+  const [isSyncingBoq, setIsSyncingBoq] = useState(false);
+
+  const handleSyncToBOQ = async () => {
+    if (!selectedReportId) return;
+    setIsSyncingBoq(true);
+    setBoqSyncStatus(null);
+    try {
+      const res = await apiClient.syncGeotechToBOQ(selectedReportId);
+      setBoqSyncStatus(res.message || 'Geotechnical items synced to BOQ');
+      if (onRefreshData) onRefreshData();
+    } catch (err: any) {
+      console.error('Failed to sync geotech items to BOQ:', err);
+      setBoqSyncStatus('Sync failed: ' + (err.message || 'Unknown error'));
+    } finally {
+      setIsSyncingBoq(false);
+    }
   };
 
   // Push to Schedule handler
@@ -477,6 +510,17 @@ export const GeotechnicalReportPage: React.FC<GeotechnicalReportPageProps> = ({
             <span>Compare</span>
           </button>
 
+          {/* Sync to BOQ Button */}
+          <button
+            onClick={handleSyncToBOQ}
+            disabled={!selectedReportId || isSyncingBoq}
+            className="px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-xs flex items-center gap-1.5 disabled:opacity-50 transition-colors"
+            title="Sync geotechnical foundation/excavation items directly into project BOQ"
+          >
+            <Sparkles className="w-3.5 h-3.5" />
+            <span>{isSyncingBoq ? 'Syncing...' : 'Sync to BOQ'}</span>
+          </button>
+
           {/* Export Dropdown / Buttons */}
           <button
             onClick={handleExportPDF}
@@ -497,6 +541,15 @@ export const GeotechnicalReportPage: React.FC<GeotechnicalReportPageProps> = ({
           </button>
 
           <button
+            onClick={handleExportStandardJSON}
+            disabled={!currentIntelDoc}
+            className="p-2 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 text-xs font-semibold disabled:opacity-50 transition-colors"
+            title="Export Standard 5-Layers JSON"
+          >
+            <Download className="w-4 h-4 text-indigo-600" />
+          </button>
+
+          <button
             onClick={handleExportJSON}
             disabled={!currentIntelDoc}
             className="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 text-xs font-semibold disabled:opacity-50 transition-colors"
@@ -506,6 +559,22 @@ export const GeotechnicalReportPage: React.FC<GeotechnicalReportPageProps> = ({
           </button>
         </div>
       </div>
+
+      {/* BOQ Sync Feedback Banner */}
+      {boqSyncStatus && (
+        <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-800 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+            <span className="font-semibold">{boqSyncStatus}</span>
+          </div>
+          <button
+            onClick={() => setBoqSyncStatus(null)}
+            className="text-emerald-700 hover:text-emerald-900 font-bold ml-3"
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
 
       {/* 2. Top Summary KPI Cards (Section 20 - dynamically populated from JSON) */}
       <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3">
@@ -595,6 +664,8 @@ export const GeotechnicalReportPage: React.FC<GeotechnicalReportPageProps> = ({
       <div className="bg-white border border-slate-200 rounded-2xl shadow-xs overflow-hidden">
         <div className="flex border-b border-slate-200 px-3 overflow-x-auto bg-slate-50/70">
           {[
+            { id: 'five_layers', label: '5 Intelligence Layers & Pipeline', icon: Sparkles },
+            { id: 'spt_and_properties', label: 'SPT & Properties', icon: ActivityIcon },
             { id: 'overview', label: 'Overview', icon: Building2 },
             { id: 'boreholes', label: 'Boreholes', count: bhList.length, icon: Drill },
             { id: 'layers', label: 'Layer Parsing', count: rawLayersList.length, icon: Layers },
@@ -643,6 +714,23 @@ export const GeotechnicalReportPage: React.FC<GeotechnicalReportPageProps> = ({
 
         {/* 4. Tab Content Panels */}
         <div className="p-6">
+          {/* TAB: 5 INTELLIGENCE LAYERS & PIPELINE */}
+          {activeTab === 'five_layers' && currentIntelDoc && (
+            <FiveLayersAndPipelineView
+              currentIntelDoc={currentIntelDoc}
+              onNavigateTab={setActiveTab}
+              onExportStandardJSON={handleExportStandardJSON}
+              selectedReportId={selectedReportId || 1}
+            />
+          )}
+
+          {/* TAB: SPT & ENGINEERING PROPERTIES */}
+          {activeTab === 'spt_and_properties' && currentIntelDoc && (
+            <SptAndPropertiesView
+              intelDoc={currentIntelDoc}
+            />
+          )}
+
           {/* TAB: OVERVIEW */}
           {activeTab === 'overview' && (
             <div className="space-y-6">
@@ -984,7 +1072,7 @@ export const GeotechnicalReportPage: React.FC<GeotechnicalReportPageProps> = ({
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                 {machineryList.map((mach, idx) => {
                   const vMeta = VEHICLE_IMAGE_MAP[mach.key] || {
-                    src: '/vehicles/backhoe.jpg',
+                    src: '/vehicles/backhoe.png',
                     label: mach.name,
                     badge: mach.role,
                     badgeColor: 'bg-slate-100 text-slate-900 border-slate-300',
@@ -1712,7 +1800,7 @@ export const GeotechnicalReportPage: React.FC<GeotechnicalReportPageProps> = ({
           >
             <div className="relative h-72 sm:h-96 w-full bg-black">
               <img
-                src={VEHICLE_IMAGE_MAP[enlargedVehicle.key]?.src || '/vehicles/backhoe.jpg'}
+                src={VEHICLE_IMAGE_MAP[enlargedVehicle.key]?.src || '/vehicles/backhoe.png'}
                 alt={enlargedVehicle.name}
                 className="w-full h-full object-cover"
               />

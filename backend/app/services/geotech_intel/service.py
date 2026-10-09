@@ -20,7 +20,8 @@ from backend.app.services.geotech_intel.engine import (
     GeotechnicalValidationEngine,
     GeotechnicalRiskEngine,
     MissingDataEngine,
-    AuditTrailEngine
+    AuditTrailEngine,
+    GeotechnicalPipelineEngine
 )
 from backend.app.services.geotech_intel.fields import val, is_found
 
@@ -87,6 +88,9 @@ class GeotechnicalIntelligenceService:
         missing_data = MissingDataEngine.identify_missing_data(extracted)
         audit_trail = AuditTrailEngine.build_audit_trail(extracted, report_code)
 
+        # 3b. Pipeline Integration (Foundation Validation, BOQ Items, Schedule, Delays)
+        pipeline_out = GeotechnicalPipelineEngine.run_pipeline(extracted, params or {})
+
         # 4. Assemble the full structured intelligence payload
         report_payload: Dict[str, Any] = {
             "report_id": report_code,
@@ -108,7 +112,24 @@ class GeotechnicalIntelligenceService:
             "validation": validation,
             "risks": risks,
             "missing_data": missing_data,
-            "audit_trail": audit_trail
+            "audit_trail": audit_trail,
+            # Enhanced 16 parameter categories & 5 layers
+            "sixteen_parameters": extracted.get("sixteen_parameters", {}),
+            "spt_data": extracted.get("spt_data", []),
+            "soil_classification": extracted.get("soil_classification", {}),
+            "engineering_properties": extracted.get("engineering_properties", {}),
+            "bearing_capacity": extracted.get("bearing_capacity", {}),
+            "settlement_parameters": extracted.get("settlement_parameters", {}),
+            "seismic_parameters": extracted.get("seismic_parameters", {}),
+            "liquefaction_assessment": extracted.get("liquefaction_assessment", {}),
+            "chemical_tests": extracted.get("chemical_tests", {}),
+            "construction_recommendations": extracted.get("construction_recommendations", {}),
+            "five_intelligence_layers": extracted.get("five_intelligence_layers", {}),
+            "standard_json": extracted.get("standard_json", {}),
+            "project": extracted.get("project", {}),
+            "investigation": extracted.get("investigation", {}),
+            "foundation": extracted.get("foundation", {}),
+            "pipeline_intelligence": pipeline_out
         }
 
         # Legacy engineering calculations for machinery fleet & strata layers

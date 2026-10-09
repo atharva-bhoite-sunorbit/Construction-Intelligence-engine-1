@@ -210,12 +210,20 @@ def requires_data(note: Optional[str] = None, action: Optional[str] = None) -> D
     }
 
 
-def is_found(f: Optional[Dict[str, Any]]) -> bool:
-    return bool(f) and f.get("status") == "FOUND" and f.get("value") is not None
+def is_found(f: Any) -> bool:
+    if f is None:
+        return False
+    if isinstance(f, dict):
+        return f.get("status") == "FOUND" and f.get("value") is not None
+    return bool(f)
 
 
-def val(f: Optional[Dict[str, Any]]) -> Any:
-    return f.get("value") if is_found(f) else None
+def val(f: Any) -> Any:
+    if f is None:
+        return None
+    if isinstance(f, dict):
+        return f.get("value") if is_found(f) else None
+    return f
 
 
 def rng(lo: Optional[float], hi: Optional[float] = None, qualifier: Optional[str] = None) -> Optional[Dict[str, Any]]:

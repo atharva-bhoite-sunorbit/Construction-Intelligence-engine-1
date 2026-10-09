@@ -56,7 +56,13 @@ def seed_database():
                 full_name="Liam Chen (Lead Structural Engineer)",
                 role="Engineer"
             )
-            db.add_all([admin, pm, sm, eng])
+            exec_user = User(
+                email="exec@construction.ai",
+                hashed_password=get_password_hash("exec123"),
+                full_name="Sophia Sterling (Executive Director)",
+                role="Top Management"
+            )
+            db.add_all([admin, pm, sm, eng, exec_user])
             db.commit()
 
         # Seed Project 1: The Grand Apex Tower (High-Rise)

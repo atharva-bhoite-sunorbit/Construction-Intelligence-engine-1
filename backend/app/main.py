@@ -54,6 +54,89 @@ try:
             conn.execute(text("ALTER TABLE geotechnical_reports ADD COLUMN report_code VARCHAR(100)"))
         if "tenant_id" not in geo_cols:
             conn.execute(text("ALTER TABLE geotechnical_reports ADD COLUMN tenant_id VARCHAR(100) DEFAULT 'default'"))
+
+        # Check blockers hindrance columns
+        blk_result = conn.execute(text("PRAGMA table_info(blockers)")).fetchall()
+        blk_cols = [r[1] for r in blk_result]
+        if "hindrance_state" not in blk_cols:
+            conn.execute(text("ALTER TABLE blockers ADD COLUMN hindrance_state VARCHAR(50) DEFAULT 'ACTIVE_HINDRANCE'"))
+        if "delay_impact_days" not in blk_cols:
+            conn.execute(text("ALTER TABLE blockers ADD COLUMN delay_impact_days FLOAT DEFAULT 0.0"))
+        if "difficulty_cause" not in blk_cols:
+            conn.execute(text("ALTER TABLE blockers ADD COLUMN difficulty_cause VARCHAR(255)"))
+
+        # Check activities governance columns
+        act_result = conn.execute(text("PRAGMA table_info(activities)")).fetchall()
+        act_cols = [r[1] for r in act_result]
+        if "assigned_role" not in act_cols:
+            conn.execute(text("ALTER TABLE activities ADD COLUMN assigned_role VARCHAR(50) DEFAULT 'Site Manager'"))
+        if "stage1_status" not in act_cols:
+            conn.execute(text("ALTER TABLE activities ADD COLUMN stage1_status VARCHAR(50) DEFAULT 'PENDING'"))
+        if "stage1_validated_by" not in act_cols:
+            conn.execute(text("ALTER TABLE activities ADD COLUMN stage1_validated_by VARCHAR(255)"))
+        if "stage1_validated_at" not in act_cols:
+            conn.execute(text("ALTER TABLE activities ADD COLUMN stage1_validated_at DATETIME"))
+        if "stage1_notes" not in act_cols:
+            conn.execute(text("ALTER TABLE activities ADD COLUMN stage1_notes TEXT"))
+        if "pm_verification_status" not in act_cols:
+            conn.execute(text("ALTER TABLE activities ADD COLUMN pm_verification_status VARCHAR(50) DEFAULT 'PENDING'"))
+        if "pm_verified_by" not in act_cols:
+            conn.execute(text("ALTER TABLE activities ADD COLUMN pm_verified_by VARCHAR(255)"))
+        if "pm_verified_at" not in act_cols:
+            conn.execute(text("ALTER TABLE activities ADD COLUMN pm_verified_at DATETIME"))
+        if "pm_verification_notes" not in act_cols:
+            conn.execute(text("ALTER TABLE activities ADD COLUMN pm_verification_notes TEXT"))
+        if "final_recorded" not in act_cols:
+            conn.execute(text("ALTER TABLE activities ADD COLUMN final_recorded BOOLEAN DEFAULT 0"))
+
+        # Partition activities into the 3 roles: Admin, Project Manager, Site Manager
+        conn.execute(text("""
+            UPDATE activities
+            SET assigned_role = 'Admin'
+            WHERE (
+                LOWER(phase) LIKE '%handover%' OR
+                LOWER(work_package) LIKE '%survey%' OR
+                LOWER(name) LIKE '%survey%' OR
+                LOWER(name) LIKE '%fencing%' OR
+                LOWER(work_package) LIKE '%mobilization%' OR
+                LOWER(work_package) LIKE '%testing%' OR
+                LOWER(name) LIKE '%commissioning%' OR
+                LOWER(name) LIKE '%compliance%' OR
+                LOWER(name) LIKE '%cleaning%'
+            )
+        """))
+
+        conn.execute(text("""
+            UPDATE activities
+            SET assigned_role = 'Project Manager'
+            WHERE (assigned_role IS NULL OR assigned_role != 'Admin') AND (
+                is_critical = 1 OR
+                LOWER(work_package) LIKE '%foundation%' OR
+                LOWER(work_package) LIKE '%structure%' OR
+                LOWER(work_package) LIKE '%structural steel%' OR
+                LOWER(name) LIKE '%footing%' OR
+                LOWER(name) LIKE '%plinth%' OR
+                LOWER(name) LIKE '%column%' OR
+                LOWER(name) LIKE '%slab%' OR
+                LOWER(name) LIKE '%beam%' OR
+                LOWER(name) LIKE '%crane%'
+            )
+        """))
+
+        conn.execute(text("""
+            UPDATE activities
+            SET assigned_role = 'Site Manager'
+            WHERE assigned_role IS NULL OR (assigned_role != 'Admin' AND assigned_role != 'Project Manager')
+        """))
+
+        # Harmonize already-approved activities (if any approved previously)
+        conn.execute(text("""
+            UPDATE activities
+            SET stage1_status = 'APPROVED',
+                pm_verification_status = 'VERIFIED',
+                final_recorded = 1
+            WHERE validation_status = 'APPROVED'
+        """))
         conn.commit()
 except Exception as mig_err:
     print(f"Migration note: {mig_err}")
@@ -127,6 +210,7 @@ app.include_router(geotechnical_external_v1.router)
 
 
 @app.get("/")
+@app.get("/health")
 def health_check():
     return {
         "status": "healthy",

@@ -8,6 +8,9 @@ import { LogProgressModal } from './components/LogProgressModal';
 import { WeatherSoilModal } from './components/WeatherSoilModal';
 import { ManagerValidationModal } from './components/ManagerValidationModal';
 import { AIAssistantDrawer } from './components/AIAssistantDrawer';
+import { ManagerLoginModal } from './components/ManagerLoginModal';
+import { LogHindranceModal } from './components/LogHindranceModal';
+import { ManagerGeotechValidationModal } from './components/ManagerGeotechValidationModal';
 
 import { Dashboard } from './pages/Dashboard';
 import { ProjectsPage } from './pages/Projects';
@@ -24,7 +27,7 @@ import { AuditLogPage } from './pages/AuditLogPage';
 import { GeotechnicalReportPage } from './pages/GeotechnicalReportPage';
 
 import { apiClient } from './api/client';
-import { Project, Activity, ActivityDependency, CompletionForecast, RiskItem, AIRecommendation, Blocker, DailyProgress } from './types';
+import { User, Project, Activity, ActivityDependency, CompletionForecast, RiskItem, AIRecommendation, Blocker, DailyProgress } from './types';
 
 export function App() {
   const [currentTab, setCurrentTab] = useState<string>('dashboard');
@@ -51,7 +54,20 @@ export function App() {
   const [validationTargetProgress, setValidationTargetProgress] = useState<DailyProgress | null>(null);
   const [validationTargetActivityName, setValidationTargetActivityName] = useState<string | undefined>(undefined);
 
-  // Initial load: Fetch projects
+  // Manager Authentication & Review Modals State
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
+  const [isLogHindranceOpen, setIsLogHindranceOpen] = useState(false);
+  const [hindranceActivityId, setHindranceActivityId] = useState<number | undefined>(undefined);
+  const [isGeotechReviewOpen, setIsGeotechReviewOpen] = useState(false);
+
+  // Initial load: Fetch session & projects
+  useEffect(() => {
+    apiClient.getMe()
+      .then((user) => setCurrentUser(user))
+      .catch(() => setCurrentUser(null));
+  }, []);
+
   const fetchProjects = async () => {
     try {
       const data = await apiClient.getProjects();
@@ -122,6 +138,7 @@ export function App() {
       <Navbar
         projects={projects}
         activeProjectId={activeProjectId}
+        currentUser={currentUser}
         onSelectProject={(id) => setActiveProjectId(id)}
         onOpenCreateProject={() => setIsCreateProjectOpen(true)}
         onOpenLogProgress={() => handleOpenLogProgressWithActivity()}
@@ -131,6 +148,16 @@ export function App() {
           setValidationTargetProgress(null);
           setValidationTargetActivityName(undefined);
           setIsValidationOpen(true);
+        }}
+        onOpenLoginModal={() => setIsLoginModalOpen(true)}
+        onLogout={() => {
+          apiClient.logout();
+          setCurrentUser(null);
+        }}
+        onOpenGeotechReview={() => setIsGeotechReviewOpen(true)}
+        onOpenLogHindrance={() => {
+          setHindranceActivityId(undefined);
+          setIsLogHindranceOpen(true);
         }}
       />
 
@@ -155,9 +182,18 @@ export function App() {
                   activities={activities}
                   forecast={forecast}
                   risks={risks}
+                  blockers={blockers}
+                  currentUser={currentUser}
                   onNavigateTab={(t) => setCurrentTab(t)}
                   onOpenCreateProject={() => setIsCreateProjectOpen(true)}
                   onOpenAutoPlan={() => setIsAutoPlanOpen(true)}
+                  onOpenGeotechReview={() => setIsGeotechReviewOpen(true)}
+                  onOpenLogHindrance={(actId) => {
+                    setHindranceActivityId(actId);
+                    setIsLogHindranceOpen(true);
+                  }}
+                  onOpenLoginModal={() => setIsLoginModalOpen(true)}
+                  onRefreshData={fetchActiveProjectData}
                 />
               )}
 
@@ -183,6 +219,7 @@ export function App() {
                   project={activeProject}
                   activities={activities}
                   dependencies={dependencies}
+                  currentUser={currentUser}
                   onOpenAddActivity={() => setIsAddActivityOpen(true)}
                   onOpenAutoPlan={() => setIsAutoPlanOpen(true)}
                   onRefreshData={fetchActiveProjectData}
@@ -323,6 +360,43 @@ export function App() {
             progressRecord={validationTargetProgress}
             activityName={validationTargetActivityName}
             onValidationComplete={() => fetchActiveProjectData()}
+          />
+
+          {/* Manager Login Modal */}
+          <ManagerLoginModal
+            isOpen={isLoginModalOpen}
+            onClose={() => setIsLoginModalOpen(false)}
+            currentUser={currentUser}
+            onLoginSuccess={(user) => {
+              setCurrentUser(user);
+              fetchActiveProjectData();
+            }}
+          />
+
+          {/* Log Project Hindrance & Difficulty Modal */}
+          <LogHindranceModal
+            isOpen={isLogHindranceOpen}
+            onClose={() => setIsLogHindranceOpen(false)}
+            project={activeProject}
+            activities={activities}
+            defaultActivityId={hindranceActivityId}
+            onHindranceCreated={() => fetchActiveProjectData()}
+          />
+
+          {/* Geotechnical Activities Plan Review & Manager Decision Gate Modal */}
+          <ManagerGeotechValidationModal
+            isOpen={isGeotechReviewOpen}
+            onClose={() => setIsGeotechReviewOpen(false)}
+            project={activeProject}
+            activities={activities}
+            blockers={blockers}
+            currentUser={currentUser}
+            onOpenLoginModal={() => setIsLoginModalOpen(true)}
+            onOpenLogHindranceModal={(actId) => {
+              setHindranceActivityId(actId);
+              setIsLogHindranceOpen(true);
+            }}
+            onRefreshData={() => fetchActiveProjectData()}
           />
         </>
       )}

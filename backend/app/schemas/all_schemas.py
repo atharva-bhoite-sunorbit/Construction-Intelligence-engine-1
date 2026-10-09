@@ -101,24 +101,38 @@ class ActivityBase(BaseModel):
     required_material: Optional[str] = None
     required_equipment: Optional[str] = None
     priority: str = "MEDIUM" # LOW, MEDIUM, HIGH, CRITICAL
-    validation_status: str = "PENDING" # PENDING, APPROVED, REJECTED
+    validation_status: str = "PENDING" # PENDING, AWAITING_PM_VERIFICATION, APPROVED, REJECTED
     validated_by: Optional[str] = None
     validated_at: Optional[datetime] = None
     validation_notes: Optional[str] = None
+    assigned_role: Optional[str] = "Site Manager" # Site Manager, Admin, Project Manager
+    stage1_status: Optional[str] = "PENDING"
+    stage1_validated_by: Optional[str] = None
+    stage1_validated_at: Optional[datetime] = None
+    stage1_notes: Optional[str] = None
+    pm_verification_status: Optional[str] = "PENDING"
+    pm_verified_by: Optional[str] = None
+    pm_verified_at: Optional[datetime] = None
+    pm_verification_notes: Optional[str] = None
+    final_recorded: bool = False
 
 class ActivityCreate(ActivityBase):
     project_id: int
 
 class ActivityValidationRequest(BaseModel):
-    validation_status: str # APPROVED, REJECTED, PENDING
+    validation_status: str # APPROVED, REJECTED, PENDING, VERIFIED
     validation_notes: Optional[str] = None
-    validated_by: Optional[str] = "Project Manager"
+    validated_by: Optional[str] = None
+    validator_role: Optional[str] = None # Site Manager, Admin, Project Manager, Top Management
+    action_type: Optional[str] = None # "STAGE_1", "PM_VERIFY", "RESET", or None
 
 class BatchActivityValidationRequest(BaseModel):
     activity_ids: List[int]
-    validation_status: str # APPROVED, REJECTED, PENDING
+    validation_status: str # APPROVED, REJECTED, PENDING, VERIFIED
     validation_notes: Optional[str] = None
-    validated_by: Optional[str] = "Project Manager"
+    validated_by: Optional[str] = None
+    validator_role: Optional[str] = None # Site Manager, Admin, Project Manager, Top Management
+    action_type: Optional[str] = None # "STAGE_1", "PM_VERIFY", "RESET", or None
 
 class ActivityUpdate(BaseModel):
     name: Optional[str] = None
@@ -150,6 +164,16 @@ class ActivityUpdate(BaseModel):
     validated_by: Optional[str] = None
     validated_at: Optional[datetime] = None
     validation_notes: Optional[str] = None
+    assigned_role: Optional[str] = None
+    stage1_status: Optional[str] = None
+    stage1_validated_by: Optional[str] = None
+    stage1_validated_at: Optional[datetime] = None
+    stage1_notes: Optional[str] = None
+    pm_verification_status: Optional[str] = None
+    pm_verified_by: Optional[str] = None
+    pm_verified_at: Optional[datetime] = None
+    pm_verification_notes: Optional[str] = None
+    final_recorded: Optional[bool] = None
 
 class ActivityResponse(ActivityBase):
     id: int
@@ -364,12 +388,15 @@ class ValidationChecklistSubmission(BaseModel):
 # Blockers
 class BlockerCreate(BaseModel):
     activity_id: Optional[int] = None
-    category: str # Material Delay, Labour Shortage, Equipment Failure, Weather, etc.
+    category: str # Material Delay, Labour Shortage, Equipment Failure, Weather, Geotechnical Obstruction, Utility Clash, etc.
     description: str
     severity: str = "MEDIUM" # LOW, MEDIUM, HIGH, CRITICAL
     opened_date: date
     expected_resolution: Optional[date] = None
     mitigation_plan: Optional[str] = None
+    hindrance_state: Optional[str] = "ACTIVE_HINDRANCE" # ACTIVE_HINDRANCE, UNDER_REVIEW, MITIGATION_IN_PROGRESS, RESOLVED
+    delay_impact_days: Optional[float] = 0.0
+    difficulty_cause: Optional[str] = None
 
 class BlockerUpdate(BaseModel):
     category: Optional[str] = None
@@ -379,6 +406,9 @@ class BlockerUpdate(BaseModel):
     resolved_date: Optional[date] = None
     status: Optional[str] = None
     mitigation_plan: Optional[str] = None
+    hindrance_state: Optional[str] = None
+    delay_impact_days: Optional[float] = None
+    difficulty_cause: Optional[str] = None
 
 class BlockerResponse(BaseModel):
     id: int
@@ -393,6 +423,9 @@ class BlockerResponse(BaseModel):
     resolved_date: Optional[date] = None
     status: str
     mitigation_plan: Optional[str] = None
+    hindrance_state: Optional[str] = "ACTIVE_HINDRANCE"
+    delay_impact_days: Optional[float] = 0.0
+    difficulty_cause: Optional[str] = None
     created_at: datetime
 
     class Config:

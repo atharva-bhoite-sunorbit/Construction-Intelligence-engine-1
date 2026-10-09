@@ -1,11 +1,11 @@
 import axios from 'axios';
 import {
-  Project, Activity, ActivityDependency, ResourceSummary,
+  User, Project, Activity, ActivityDependency, ResourceSummary,
   DailyProgress, Blocker, SiteObservation, MLPredictionItem,
   RiskItem, ImpactAnalysisResponse, CompletionForecast,
   AIRecommendation, AIManagementSummary, DashboardStats,
   EnvironmentalAnalysis, ValidationSubmission, SiteValidationRecord,
-  GeotechnicalReport, SampleGeotechReport
+  GeotechnicalReport, SampleGeotechReport, GovernanceSummary
 } from '../types';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
@@ -17,7 +17,40 @@ export const api = axios.create({
   },
 });
 
+const savedToken = typeof localStorage !== 'undefined' ? localStorage.getItem('auth_token') : null;
+if (savedToken) {
+  api.defaults.headers.common['Authorization'] = `Bearer ${savedToken}`;
+}
+
+export const setAuthToken = (token?: string) => {
+  if (token) {
+    localStorage.setItem('auth_token', token);
+    api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+  } else {
+    localStorage.removeItem('auth_token');
+    delete api.defaults.headers.common['Authorization'];
+  }
+};
+
 export const apiClient = {
+  // Authentication & Session
+  login: async (email: string, password: string): Promise<{ access_token: string; token_type: string; user: User }> => {
+    const res = await api.post('/api/auth/login', { email, password });
+    if (res.data?.access_token) {
+      setAuthToken(res.data.access_token);
+    }
+    return res.data;
+  },
+
+  getMe: async (): Promise<User> => {
+    const res = await api.get('/api/auth/me');
+    return res.data;
+  },
+
+  logout: () => {
+    setAuthToken(undefined);
+  },
+
   // Dashboard
   getDashboardStats: async (): Promise<DashboardStats> => {
     const res = await api.get('/api/dashboard/stats');
@@ -71,7 +104,13 @@ export const apiClient = {
 
   validateActivity: async (
     id: number,
-    data: { validation_status: 'APPROVED' | 'REJECTED' | 'PENDING'; validation_notes?: string; validated_by?: string }
+    data: {
+      validation_status: 'APPROVED' | 'REJECTED' | 'PENDING' | 'VERIFIED' | string;
+      validation_notes?: string;
+      validated_by?: string;
+      validator_role?: string;
+      action_type?: string;
+    }
   ): Promise<Activity> => {
     const res = await api.post(`/api/activities/${id}/validate`, data);
     return res.data;
@@ -79,9 +118,21 @@ export const apiClient = {
 
   bulkValidateActivities: async (
     projectId: number,
-    data: { activity_ids: number[]; validation_status: 'APPROVED' | 'REJECTED' | 'PENDING'; validation_notes?: string; validated_by?: string }
-  ): Promise<{ success: boolean; updated_count: number; validation_status: string; validated_by: string }> => {
+    data: {
+      activity_ids: number[];
+      validation_status: 'APPROVED' | 'REJECTED' | 'PENDING' | 'VERIFIED' | string;
+      validation_notes?: string;
+      validated_by?: string;
+      validator_role?: string;
+      action_type?: string;
+    }
+  ): Promise<{ success: boolean; updated_count: number; validation_status: string; validated_by: string; errors?: string[] }> => {
     const res = await api.post(`/api/projects/${projectId}/activities/bulk-validate`, data);
+    return res.data;
+  },
+
+  getGovernanceSummary: async (projectId: number): Promise<GovernanceSummary> => {
+    const res = await api.get(`/api/projects/${projectId}/activities/governance-summary`);
     return res.data;
   },
 
@@ -158,8 +209,23 @@ export const apiClient = {
     return res.data;
   },
 
+  createHindrance: async (projectId: number, data: any): Promise<Blocker> => {
+    const res = await api.post(`/api/projects/${projectId}/blockers`, data);
+    return res.data;
+  },
+
   updateBlocker: async (id: number, data: any): Promise<Blocker> => {
     const res = await api.put(`/api/blockers/${id}`, data);
+    return res.data;
+  },
+
+  updateHindrance: async (id: number, data: any): Promise<Blocker> => {
+    const res = await api.put(`/api/blockers/${id}`, data);
+    return res.data;
+  },
+
+  sendGeotechnicalPlanToManager: async (projectId: number): Promise<any> => {
+    const res = await api.post(`/api/projects/${projectId}/geotechnical/send-plan-to-manager`);
     return res.data;
   },
 
@@ -388,6 +454,32 @@ export const apiClient = {
       params: { report_a: reportA, report_b: reportB }
     });
     return res.data;
+  },
+
+  getGeotechFiveLayers: async (reportId: string | number): Promise<any> => {
+    const res = await api.get(`/api/geotechnical/${reportId}/five-layers`);
+    return res.data;
+  },
+
+  getGeotechSixteenParameters: async (reportId: string | number): Promise<any> => {
+    const res = await api.get(`/api/geotechnical/${reportId}/sixteen-parameters`);
+    return res.data;
+  },
+
+  getGeotechStandardJson: async (reportId: string | number): Promise<any> => {
+    const res = await api.get(`/api/geotechnical/${reportId}/standard-json`);
+    return res.data;
+  },
+
+  getGeotechPipeline: async (reportId: string | number): Promise<any> => {
+    const res = await api.get(`/api/geotechnical/${reportId}/pipeline`);
+    return res.data;
+  },
+
+  syncGeotechToBOQ: async (reportId: string | number): Promise<any> => {
+    const res = await api.post(`/api/geotechnical/${reportId}/sync-boq`);
+    return res.data;
   }
 };
+
 

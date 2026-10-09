@@ -1,27 +1,41 @@
 import React from 'react';
-import { Building2, Plus, ClipboardCheck, Sparkles, HardHat, ChevronDown, Wind, Layers, ShieldCheck } from 'lucide-react';
-import { Project } from '../types';
+import {
+  Building2, Plus, ClipboardCheck, Sparkles, HardHat,
+  ChevronDown, Wind, Layers, ShieldCheck, LogIn, LogOut,
+  UserCheck, AlertTriangle, Pickaxe
+} from 'lucide-react';
+import { Project, User } from '../types';
 
 interface NavbarProps {
   projects: Project[];
   activeProjectId?: number;
+  currentUser?: User | null;
   onSelectProject: (id: number) => void;
   onOpenCreateProject: () => void;
   onOpenLogProgress: () => void;
   onToggleAIAssistant: () => void;
   onOpenWeatherSoil?: () => void;
   onOpenValidation?: () => void;
+  onOpenLoginModal?: () => void;
+  onLogout?: () => void;
+  onOpenGeotechReview?: () => void;
+  onOpenLogHindrance?: () => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
   projects,
   activeProjectId,
+  currentUser,
   onSelectProject,
   onOpenCreateProject,
   onOpenLogProgress,
   onToggleAIAssistant,
   onOpenWeatherSoil,
   onOpenValidation,
+  onOpenLoginModal,
+  onLogout,
+  onOpenGeotechReview,
+  onOpenLogHindrance,
 }) => {
   const activeProject = projects.find((p) => p.id === activeProjectId) || projects[0];
 
@@ -92,6 +106,30 @@ export const Navbar: React.FC<NavbarProps> = ({
           <span>Log Daily Progress</span>
         </button>
 
+        {/* Manager Quick Review Button */}
+        {onOpenGeotechReview && (
+          <button
+            onClick={onOpenGeotechReview}
+            className="hidden xl:flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-800 border border-indigo-200 text-xs font-bold transition-all shadow-xs"
+            title="Open Geotechnical & Project Activities Manager Decision Gate (YES / NO)"
+          >
+            <Pickaxe className="w-3.5 h-3.5 text-indigo-600" />
+            <span>Geotech Plan (YES/NO)</span>
+          </button>
+        )}
+
+        {/* Log Hindrance Shortcut */}
+        {onOpenLogHindrance && (
+          <button
+            onClick={onOpenLogHindrance}
+            className="hidden xl:flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 text-xs font-bold transition-all shadow-xs"
+            title="Log difficulty or hindrance in persistent register"
+          >
+            <AlertTriangle className="w-3.5 h-3.5 text-amber-600" />
+            <span>Log Hindrance</span>
+          </button>
+        )}
+
         <button
           onClick={onToggleAIAssistant}
           className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-brand-600 hover:bg-brand-700 text-white text-xs font-semibold shadow-sm transition-all"
@@ -100,17 +138,51 @@ export const Navbar: React.FC<NavbarProps> = ({
           <span>AI Copilot</span>
         </button>
 
-        {/* User Avatar */}
+        {/* User Session / Manager Sign In */}
         <div className="flex items-center gap-2 pl-3 border-l border-slate-200">
-          <div className="w-8 h-8 rounded-full bg-slate-100 text-slate-700 border border-slate-200 flex items-center justify-center text-xs font-bold shadow-xs">
-            MB
-          </div>
-          <div className="hidden lg:block text-left">
-            <div className="text-xs font-semibold text-slate-800 leading-tight">Marcus Brody</div>
-            <div className="text-[10px] text-slate-500 leading-tight">Project Director</div>
-          </div>
+          {currentUser ? (
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-full bg-brand-600 text-white flex items-center justify-center text-xs font-bold shadow-xs">
+                {currentUser.full_name
+                  .split(' ')
+                  .map((n) => n[0])
+                  .join('')
+                  .slice(0, 2)
+                  .toUpperCase()}
+              </div>
+              <div className="hidden lg:block text-left">
+                <div className="text-xs font-bold text-slate-900 leading-tight flex items-center gap-1">
+                  <span>{currentUser.full_name}</span>
+                  <span className="px-1.5 py-0.2 rounded bg-emerald-100 text-emerald-800 text-[9px] font-extrabold">
+                    {currentUser.role}
+                  </span>
+                </div>
+                <div className="text-[10px] text-slate-500 leading-tight truncate max-w-[130px]">
+                  {currentUser.email}
+                </div>
+              </div>
+              {onLogout && (
+                <button
+                  onClick={onLogout}
+                  className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
+                  title="Sign out / switch manager"
+                >
+                  <LogOut className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+          ) : (
+            <button
+              onClick={onOpenLoginModal}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold shadow-xs transition-all"
+            >
+              <LogIn className="w-3.5 h-3.5 text-brand-400" />
+              <span>Manager Login</span>
+            </button>
+          )}
         </div>
       </div>
     </header>
   );
 };
+

@@ -1544,7 +1544,7 @@ export const IsometricGeologicalCube: React.FC<IsometricGeologicalCubeProps> = (
                     label: mKey.replace('_', ' ').toUpperCase(),
                     badge: 'Heavy Plant Equipment',
                     badgeColor: 'bg-slate-800 text-slate-200 border-slate-700',
-                    src: '/vehicles/backhoe.jpg',
+                    src: '/vehicles/backhoe.png',
                     description: 'Heavy civil construction machinery assigned to this stratum.',
                   };
 

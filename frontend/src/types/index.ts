@@ -71,10 +71,72 @@ export interface Activity {
   delay_risk_score?: number;
   predicted_delay_days?: number;
   risk_level?: string;
-  validation_status?: 'PENDING' | 'APPROVED' | 'REJECTED';
+  assigned_role?: 'Site Engineer' | 'Site Manager' | 'Admin' | 'Project Manager' | string;
+  validation_status?: 'PENDING' | 'AWAITING_ADMIN_VERIFICATION' | 'AWAITING_PM_VERIFICATION' | 'APPROVED' | 'RECORDED' | 'REJECTED';
   validated_by?: string;
   validated_at?: string;
   validation_notes?: string;
+  stage1_status?: 'PENDING' | 'APPROVED' | 'REJECTED';
+  stage1_validated_by?: string;
+  stage1_validated_at?: string;
+  stage1_notes?: string;
+  pm_verification_status?: 'PENDING' | 'VERIFIED' | 'REJECTED';
+  pm_verified_by?: string;
+  pm_verified_at?: string;
+  pm_verification_notes?: string;
+  final_recorded?: boolean;
+}
+
+export interface GovernanceRoleStats {
+  role: string;
+  total: number;
+  pending_validation: number;
+  awaiting_verification?: number;
+  awaiting_pm_verification: number;
+  awaiting_admin_verification?: number;
+  final_recorded: number;
+  rejected: number;
+  recorded_percentage: number;
+}
+
+export interface GovernanceRecentItem {
+  id: number;
+  name: string;
+  code?: string;
+  floor?: number;
+  tower?: string;
+  phase?: string;
+  assigned_role: string;
+  stage1_status?: string;
+  stage1_validated_by?: string;
+  stage1_validated_at?: string;
+  pm_verification_status?: string;
+  pm_verified_by?: string;
+  pm_verified_at?: string;
+  final_recorded: boolean;
+  validation_status: string;
+  notes?: string;
+}
+
+export interface GovernanceSummary {
+  project_id: number;
+  project_name: string;
+  total_activities: number;
+  final_recorded_count: number;
+  recorded_percentage: number;
+  awaiting_verification_count?: number;
+  awaiting_pm_count: number;
+  awaiting_admin_count?: number;
+  pending_stage1_count: number;
+  rejected_count: number;
+  roles: {
+    'Site Engineer'?: GovernanceRoleStats;
+    'Site Manager': GovernanceRoleStats;
+    'Admin': GovernanceRoleStats;
+    'Project Manager': GovernanceRoleStats;
+    [key: string]: GovernanceRoleStats | undefined;
+  };
+  recent_verifications: GovernanceRecentItem[];
 }
 
 export interface ActivityDependency {
@@ -226,6 +288,9 @@ export interface Blocker {
   resolved_date?: string;
   status: 'OPEN' | 'IN_PROGRESS' | 'RESOLVED';
   mitigation_plan?: string;
+  hindrance_state?: 'ACTIVE_HINDRANCE' | 'UNDER_REVIEW' | 'MITIGATION_IN_PROGRESS' | 'RESOLVED';
+  delay_impact_days?: number;
+  difficulty_cause?: string;
   created_at: string;
 }
 
@@ -538,12 +603,17 @@ export interface BoreholeRecord {
 
 export interface GeotechnicalRiskRecord {
   risk_title: string;
-  severity: 'HIGH' | 'MEDIUM' | 'LOW';
+  severity: 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW';
   category: string;
   reason: string;
   source: string;
   source_type: string;
   recommended_action: string;
+  flag?: string;
+  potential_impact?: string;
+  affected_activities?: string[];
+  schedule_impact?: string;
+  cost_impact?: string;
 }
 
 export interface GeotechnicalAuditRecord {
@@ -558,6 +628,68 @@ export interface GeotechnicalAuditRecord {
   confidence: string;
   extraction_method: string;
   timestamp: string;
+}
+
+export interface GeotechnicalPipelineData {
+  foundation_validation?: {
+    proposed_floors: number;
+    building_type: string;
+    estimated_contact_pressure_kpa: number;
+    allowable_bearing_pressure_kpa: number;
+    validation_verdict: string;
+    is_bearing_adequate: boolean;
+    recommended_foundation_system: string;
+    rock_socket_depth_m?: number | null;
+    applicable_code?: string;
+  };
+  geotechnical_boq_items?: Array<{
+    item_code: string;
+    category: string;
+    description: string;
+    unit: string;
+    quantity: number;
+    engineering_rationale: string;
+  }>;
+  construction_sequence?: Array<{
+    step: number;
+    activity_name: string;
+    phase: string;
+    duration_days: number;
+    predecessor: string;
+    affected_layer: string;
+    critical_note: string;
+  }>;
+  delay_prediction?: {
+    delay_risk_level: string;
+    recommended_schedule_buffer_days: number;
+    delay_risk_factors: string[];
+    mitigation_plan: string;
+  };
+  labour_material_estimation?: {
+    total_excavation_volume_cum?: number;
+    soil_volume_cum?: number;
+    rock_volume_cum?: number;
+    material_takeoff?: {
+      pcc_m15_blinding_cum?: number;
+      raft_m25_m30_concrete_cum?: number;
+      tmt_rebar_steel_metric_tonnes?: number;
+      waterproofing_membrane_sqm?: number;
+      select_granular_backfill_cum?: number;
+    };
+    machinery_fleet?: Array<{
+      equipment_name: string;
+      quantity: number;
+      capacity?: string;
+      shifts_required?: number;
+      role?: string;
+    }>;
+    labour_crew_breakdown?: Array<{
+      trade: string;
+      mandays: number;
+      crew_size?: number;
+    }>;
+    estimated_diesel_litres?: number;
+  };
 }
 
 export interface GeotechnicalIntelligenceDoc {
@@ -621,6 +753,33 @@ export interface GeotechnicalIntelligenceDoc {
     action_type: string;
   }>;
   audit_trail: GeotechnicalAuditRecord[];
+  // Enhanced 16 Parameter Categories & 5 Layers
+  sixteen_parameters?: Record<string, any>;
+  five_intelligence_layers?: Record<string, any>;
+  spt_data?: Array<{
+    borehole: string;
+    borehole_id?: string;
+    depth_m: number;
+    sample_id: string;
+    raw_blows: string;
+    seating_blows: number;
+    test_interval: string;
+    spt_n: number;
+    corrected_n?: number;
+    n60?: number;
+    soil_layer: string;
+    relative_density: string;
+  }>;
+  soil_classification?: Record<string, SourceGroundedField>;
+  engineering_properties?: Record<string, SourceGroundedField>;
+  bearing_capacity?: Record<string, any>;
+  settlement_parameters?: Record<string, SourceGroundedField>;
+  seismic_parameters?: Record<string, any>;
+  liquefaction_assessment?: Record<string, any>;
+  chemical_tests?: Record<string, SourceGroundedField>;
+  construction_recommendations?: Record<string, SourceGroundedField>;
+  standard_json?: any;
+  pipeline_intelligence?: GeotechnicalPipelineData;
   strata_layers?: StrataLayer[];
   recommended_machinery?: MachineryRecommendation[];
   planned_activities?: PlannedActivity[];

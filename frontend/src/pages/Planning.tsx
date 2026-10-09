@@ -20,13 +20,14 @@ import {
 } from 'lucide-react';
 import { GanttChart } from '../components/GanttChart';
 import { PMActivitySectionValidation } from '../components/PMActivitySectionValidation';
-import { Activity, ActivityDependency, Project } from '../types';
+import { Activity, ActivityDependency, Project, User } from '../types';
 import { apiClient } from '../api/client';
 
 interface PlanningPageProps {
   project: Project;
   activities: Activity[];
   dependencies: ActivityDependency[];
+  currentUser?: User | null;
   onOpenAddActivity: () => void;
   onOpenAutoPlan: () => void;
   onRefreshData: () => void;
@@ -37,6 +38,7 @@ export const PlanningPage: React.FC<PlanningPageProps> = ({
   project,
   activities,
   dependencies,
+  currentUser,
   onOpenAddActivity,
   onOpenAutoPlan,
   onRefreshData,
@@ -153,10 +155,10 @@ export const PlanningPage: React.FC<PlanningPageProps> = ({
             }`}
           >
             <ShieldCheck className="w-4 h-4 text-emerald-600" />
-            <span>PM Section Validation</span>
-            {activities.filter((a) => !a.validation_status || a.validation_status === 'PENDING').length > 0 && (
+            <span>Activity Governance & Verification</span>
+            {activities.filter((a) => !a.final_recorded).length > 0 && (
               <span className="text-[10px] bg-amber-200 text-amber-900 font-extrabold px-1.5 py-0.2 rounded-full border border-amber-400">
-                {activities.filter((a) => !a.validation_status || a.validation_status === 'PENDING').length}
+                {activities.filter((a) => !a.final_recorded).length}
               </span>
             )}
           </button>
@@ -194,9 +196,9 @@ export const PlanningPage: React.FC<PlanningPageProps> = ({
           { id: 'activities', label: 'Activities Hierarchy', icon: Layers, count: activities.length },
           {
             id: 'validation',
-            label: 'PM Section Validation (YES/NO)',
+            label: 'Multi-Tier Governance & Verification (YES/NO)',
             icon: ShieldCheck,
-            count: activities.filter((a) => !a.validation_status || a.validation_status === 'PENDING').length,
+            count: activities.filter((a) => !a.final_recorded).length,
           },
           { id: 'gantt', label: 'Interactive Gantt Chart', icon: CalendarDays },
           { id: 'dependencies', label: 'Dependency Graph & Logic', icon: Network, count: dependencies.length },
@@ -445,26 +447,35 @@ export const PlanningPage: React.FC<PlanningPageProps> = ({
                         )}
                       </td>
                       <td className="py-3 px-3 text-center">
-                        {a.validation_status === 'APPROVED' ? (
+                        {a.final_recorded || a.validation_status === 'RECORDED' ? (
                           <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
                             <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-                            YES (Approved)
+                            RECORDED
+                          </span>
+                        ) : a.stage1_status === 'APPROVED' || a.validation_status === 'AWAITING_PM_VERIFICATION' ? (
+                          <span
+                            onClick={() => setSubTab('validation')}
+                            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-300 cursor-pointer hover:bg-amber-200"
+                            title="Validated in Stage 1; awaiting Project Manager verification"
+                          >
+                            <Clock className="w-3 h-3 text-amber-600" />
+                            Awaiting PM
                           </span>
                         ) : a.validation_status === 'REJECTED' ? (
                           <span
                             className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 text-rose-800 border border-rose-300"
-                            title={a.validation_notes || 'Rejected by PM'}
+                            title={a.validation_notes || 'Rejected in governance review'}
                           >
                             <XCircle className="w-3 h-3 text-rose-600" />
-                            NO (Rejected)
+                            REJECTED
                           </span>
                         ) : (
                           <button
                             onClick={() => setSubTab('validation')}
-                            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-50 text-amber-800 border border-amber-300 hover:bg-amber-100 transition-colors cursor-pointer"
-                            title="Open PM Section Validation to review"
+                            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-slate-100 text-slate-700 border border-slate-300 hover:bg-slate-200 transition-colors cursor-pointer"
+                            title="Open Governance Gate to validate"
                           >
-                            <Clock className="w-3 h-3 text-amber-600" />
+                            <Clock className="w-3 h-3 text-slate-500" />
                             Pending Review
                           </button>
                         )}
@@ -698,6 +709,7 @@ export const PlanningPage: React.FC<PlanningPageProps> = ({
         <PMActivitySectionValidation
           project={project}
           activities={activities}
+          currentUser={currentUser}
           onRefreshData={onRefreshData}
         />
       )}

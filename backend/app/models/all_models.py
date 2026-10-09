@@ -120,11 +120,29 @@ class Activity(Base):
     free_float = Column(Integer, default=0)
     sort_order = Column(Integer, default=0)
 
-    # PM Validation fields
-    validation_status = Column(String(50), default="PENDING") # PENDING, APPROVED, REJECTED
-    validated_by = Column(String(255), nullable=True) # e.g. "Project Manager"
+    # Role Assignment & Multi-tier Governance
+    assigned_role = Column(String(50), default="Site Manager") # Site Manager, Admin, Project Manager
+
+    # Legacy & Aggregate Validation Status
+    validation_status = Column(String(50), default="PENDING") # PENDING, AWAITING_PM_VERIFICATION, APPROVED, REJECTED
+    validated_by = Column(String(255), nullable=True)
     validated_at = Column(DateTime, nullable=True)
     validation_notes = Column(Text, nullable=True)
+
+    # Stage 1 Validation (by Site Manager or Admin)
+    stage1_status = Column(String(50), default="PENDING") # PENDING, APPROVED, REJECTED
+    stage1_validated_by = Column(String(255), nullable=True)
+    stage1_validated_at = Column(DateTime, nullable=True)
+    stage1_notes = Column(Text, nullable=True)
+
+    # Stage 2 PM Verification / Countersign
+    pm_verification_status = Column(String(50), default="PENDING") # PENDING, VERIFIED, REJECTED
+    pm_verified_by = Column(String(255), nullable=True)
+    pm_verified_at = Column(DateTime, nullable=True)
+    pm_verification_notes = Column(Text, nullable=True)
+
+    # Mandatory Gate: True ONLY once Project Manager verifies Stage 1 work or approves PM-direct work
+    final_recorded = Column(Boolean, default=False)
 
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
@@ -273,6 +291,9 @@ class Blocker(Base):
     resolved_date = Column(Date, nullable=True)
     status = Column(String(50), default="OPEN") # OPEN, IN_PROGRESS, RESOLVED
     mitigation_plan = Column(Text, nullable=True)
+    hindrance_state = Column(String(50), default="ACTIVE_HINDRANCE") # ACTIVE_HINDRANCE, UNDER_REVIEW, MITIGATION_IN_PROGRESS, RESOLVED
+    delay_impact_days = Column(Float, default=0.0)
+    difficulty_cause = Column(String(255), nullable=True)
     reported_by_user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
 

@@ -45,9 +45,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
         { id: 'activities', label: 'Activities Hierarchy', icon: ActivityIcon },
         {
           id: 'pm-validation',
-          label: 'PM Section Validation',
+          label: 'Activity Governance Gate',
           icon: ShieldCheck,
-          badge: 'YES/NO',
+          badge: 'Multi-Tier',
           badgeColor: 'bg-emerald-100 text-emerald-800 border-emerald-300 font-bold',
         },
         {

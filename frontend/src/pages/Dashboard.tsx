@@ -14,10 +14,12 @@ import {
   Clock,
   Sparkles,
   Pickaxe,
-  Rotate3d
+  Rotate3d,
+  FileCheck
 } from 'lucide-react';
 import { KPICard } from '../components/KPICard';
-import { Project, Activity, CompletionForecast, RiskItem } from '../types';
+import { ManagerPlansWidget } from '../components/ManagerPlansWidget';
+import { Project, Activity, CompletionForecast, RiskItem, Blocker, User } from '../types';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip } from 'recharts';
 
 interface DashboardProps {
@@ -26,9 +28,15 @@ interface DashboardProps {
   activities: Activity[];
   forecast?: CompletionForecast | null;
   risks?: RiskItem[];
+  blockers?: Blocker[];
+  currentUser?: User | null;
   onNavigateTab: (tab: string) => void;
   onOpenCreateProject: () => void;
   onOpenAutoPlan: () => void;
+  onOpenGeotechReview?: () => void;
+  onOpenLogHindrance?: (activityId?: number) => void;
+  onOpenLoginModal?: () => void;
+  onRefreshData?: () => void;
 }
 
 export const Dashboard: React.FC<DashboardProps> = ({
@@ -37,9 +45,15 @@ export const Dashboard: React.FC<DashboardProps> = ({
   activities,
   forecast,
   risks = [],
+  blockers = [],
+  currentUser,
   onNavigateTab,
   onOpenCreateProject,
   onOpenAutoPlan,
+  onOpenGeotechReview,
+  onOpenLogHindrance,
+  onOpenLoginModal,
+  onRefreshData,
 }) => {
   const totalActs = activities.length;
   const completedActs = activities.filter((a) => a.status === 'COMPLETED').length;
@@ -78,6 +92,16 @@ export const Dashboard: React.FC<DashboardProps> = ({
           </div>
 
           <div className="flex items-center gap-2.5">
+            <button
+              onClick={() => {
+                const el = document.getElementById('manager-plans-section');
+                el?.scrollIntoView({ behavior: 'smooth' });
+              }}
+              className="px-3.5 py-2 rounded-lg bg-white hover:bg-slate-50 text-slate-800 border border-slate-300 text-xs font-bold transition-all shadow-xs flex items-center gap-1.5"
+            >
+              <FileCheck className="w-4 h-4 text-brand-600" />
+              Manager Plans (8)
+            </button>
             <button
               onClick={() => onNavigateTab('geotechnical')}
               className="px-3.5 py-2 rounded-lg bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 font-bold text-xs transition-all shadow-sm flex items-center gap-1.5"
@@ -208,6 +232,25 @@ export const Dashboard: React.FC<DashboardProps> = ({
           </div>
         </div>
       </div>
+
+      {/* Manager Action Plans & Governance Engine */}
+      {activeProject && (
+        <div id="manager-plans-section">
+          <ManagerPlansWidget
+            project={activeProject}
+            activities={activities}
+            forecast={forecast}
+            risks={risks}
+            blockers={blockers}
+            currentUser={currentUser}
+            onNavigateTab={onNavigateTab}
+            onOpenGeotechReview={onOpenGeotechReview}
+            onOpenLogHindrance={onOpenLogHindrance}
+            onOpenLoginModal={onOpenLoginModal}
+            onRefreshData={onRefreshData}
+          />
+        </div>
+      )}
 
       {/* Immediate Attention: Delay Risk Items */}
       <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-xs">

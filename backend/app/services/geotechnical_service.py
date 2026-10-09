@@ -168,14 +168,8 @@ def extract_text_from_file(content: bytes, filename: str) -> Tuple[str, List[str
 
     try:
         if name.endswith(".pdf") or content[:5] == b"%PDF-":
-            from pypdf import PdfReader
-            reader = PdfReader(io.BytesIO(content))
-            pages = []
-            for page in reader.pages:
-                try:
-                    pages.append(page.extract_text() or "")
-                except Exception:
-                    pages.append("")
+            from backend.app.services.geotech_intel.extractor import extract_pages_from_pdf
+            pages = extract_pages_from_pdf(content)
             text = "\n".join(pages)
             if len(text.strip()) < 60:
                 warnings.append(
