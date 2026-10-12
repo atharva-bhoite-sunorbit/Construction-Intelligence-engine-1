@@ -49,7 +49,7 @@ Construction-1/
 ## 🚀 Quickstart Guide
 
 ### Prerequisites
-- **Python**: 3.10+ (tested on Python 3.11)
+- **Python**: 3.10–3.12 (tested on 3.11; pinned `scikit-learn`/`numpy` do not build on Python 3.13+)
 - **Node.js**: 18+ and npm (tested on Node 22)
 - **Git**
 
@@ -123,7 +123,7 @@ Run the comprehensive backend test suite:
 ```bash
 pytest
 ```
-Expected output: `27 passed` across CPM scheduling, ML prediction, Geotechnical Intelligence, and external API key integration test suites.
+Expected output: `44 passed` across CPM scheduling, ML prediction, Geotechnical Intelligence, and external API key integration test suites.
 
 ---
 
