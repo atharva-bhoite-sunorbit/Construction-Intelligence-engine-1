@@ -334,8 +334,13 @@ export const ManagerPlansWidget: React.FC<ManagerPlansWidgetProps> = ({
     },
   ], [project, activities, forecast, risks, blockers, approvedPlans, totalLabour, pendingSignoffs, approvedSignoffs, lookaheadActs.length, delayedActs.length, highRisks.length, criticalActs.length]);
 
+  // Hindrance counts and analysis are restricted to Admin accounts.
+  const visiblePlans = currentUser?.role === 'Admin'
+    ? plans
+    : plans.filter((plan) => plan.id !== 'hindrance-register');
+
   // Filtering
-  const filteredPlans = plans.filter((p) => {
+  const filteredPlans = visiblePlans.filter((p) => {
     if (selectedCategory !== 'all' && p.category !== selectedCategory) return false;
     if (searchTerm) {
       const q = searchTerm.toLowerCase();

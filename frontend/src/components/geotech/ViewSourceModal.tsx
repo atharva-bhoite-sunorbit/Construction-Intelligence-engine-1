@@ -77,8 +77,8 @@ export const ViewSourceModal: React.FC<ViewSourceModalProps> = ({
 
           {isCalc && (
             <div className="space-y-2">
-              <div className="text-xs font-semibold text-blue-900">Engineering Formula Applied:</div>
-              <div className="p-3 bg-blue-50 border border-blue-200 rounded-xl text-xs text-blue-900 font-mono">
+              <div className="text-xs font-semibold text-amber-900">Engineering Formula Applied:</div>
+              <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-900 font-mono">
                 {fieldData.formula || 'Formula not provided.'}
               </div>
               {fieldData.inputs && fieldData.inputs.length > 0 && (

@@ -73,7 +73,7 @@ export const BoreholeDatabaseView: React.FC<BoreholeDatabaseViewProps> = ({ bore
                   </div>
                   <div className="flex justify-between text-slate-600">
                     <span>Hard Rock:</span>
-                    <span className="font-bold text-cyan-700">{bh.hard_rock_depth} m</span>
+                    <span className="font-bold text-teal-700">{bh.hard_rock_depth} m</span>
                   </div>
                 </div>
               </button>
@@ -105,7 +105,7 @@ export const BoreholeDatabaseView: React.FC<BoreholeDatabaseViewProps> = ({ bore
               <div className="absolute left-0 top-2 bottom-2 w-10 flex flex-col justify-between text-[10px] font-mono text-slate-400 border-r border-slate-200 pr-1">
                 <span>0.0m</span>
                 <span className="text-amber-600 font-bold">{selectedBh.cwr_depth}m</span>
-                <span className="text-cyan-600 font-bold">{selectedBh.hard_rock_depth}m</span>
+                <span className="text-teal-600 font-bold">{selectedBh.hard_rock_depth}m</span>
                 <span>{selectedBh.termination_depth}m</span>
               </div>
 
@@ -119,7 +119,7 @@ export const BoreholeDatabaseView: React.FC<BoreholeDatabaseViewProps> = ({ bore
                       key={idx}
                       className={`p-3 rounded-xl border transition-all ${
                         isHard
-                          ? 'bg-cyan-50/60 border-cyan-200 text-cyan-950'
+                          ? 'bg-teal-50/60 border-teal-200 text-teal-950'
                           : isRock
                           ? 'bg-amber-50/60 border-amber-200 text-amber-950'
                           : 'bg-emerald-50/50 border-emerald-200 text-emerald-950'
@@ -188,26 +188,26 @@ export const BoreholeDatabaseView: React.FC<BoreholeDatabaseViewProps> = ({ bore
                 </span>
               </div>
 
-              <div className="p-3 bg-cyan-50 rounded-xl border border-cyan-200">
-                <span className="text-[10px] font-bold text-cyan-700 uppercase tracking-wider block">
+              <div className="p-3 bg-teal-50 rounded-xl border border-teal-200">
+                <span className="text-[10px] font-bold text-teal-700 uppercase tracking-wider block">
                   Depth to Hard Rock
                 </span>
-                <span className="text-base font-bold text-cyan-900 font-mono">
+                <span className="text-base font-bold text-teal-900 font-mono">
                   {selectedBh.hard_rock_depth} m
                 </span>
-                <span className="text-[10px] text-cyan-700/80 block mt-0.5">
+                <span className="text-[10px] text-teal-700/80 block mt-0.5">
                   Competent Bedrock Strata
                 </span>
               </div>
 
-              <div className="p-3 bg-blue-50 rounded-xl border border-blue-200">
-                <span className="text-[10px] font-bold text-blue-700 uppercase tracking-wider block">
+              <div className="p-3 bg-amber-50 rounded-xl border border-amber-200">
+                <span className="text-[10px] font-bold text-amber-700 uppercase tracking-wider block">
                   Water Table Depth
                 </span>
-                <span className="text-base font-bold text-blue-900 font-mono">
+                <span className="text-base font-bold text-amber-900 font-mono">
                   {selectedBh.groundwater_depth}
                 </span>
-                <span className="text-[10px] text-blue-700/80 block mt-0.5">
+                <span className="text-[10px] text-amber-700/80 block mt-0.5">
                   Static Water Encountered
                 </span>
               </div>
@@ -242,9 +242,9 @@ export const BoreholeDatabaseView: React.FC<BoreholeDatabaseViewProps> = ({ bore
                         >
                           <td className="py-2 px-3 text-slate-900">{b.borehole_id}</td>
                           <td className="py-2 px-3 text-amber-700">{b.cwr_depth} m</td>
-                          <td className="py-2 px-3 text-cyan-700">{b.hard_rock_depth} m</td>
+                          <td className="py-2 px-3 text-teal-700">{b.hard_rock_depth} m</td>
                           <td className="py-2 px-3 text-slate-600">{b.termination_depth} m</td>
-                          <td className="py-2 px-3 text-blue-600">{b.groundwater_depth}</td>
+                          <td className="py-2 px-3 text-amber-600">{b.groundwater_depth}</td>
                           <td className="py-2 px-3">
                             <span className="px-1.5 py-0.5 text-[10px] font-sans rounded bg-emerald-100 text-emerald-800">
                               Verified

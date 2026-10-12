@@ -79,7 +79,7 @@ export const MLPredictionsPage: React.FC<MLPredictionsPageProps> = ({ project, o
           <button
             onClick={handleRunInference}
             disabled={isRunningInference}
-            className="px-4 py-2 rounded-xl bg-gradient-to-r from-brand-600 to-indigo-600 hover:from-brand-500 hover:to-indigo-500 text-white text-xs font-bold shadow-lg shadow-brand-500/25 flex items-center gap-2 transition-all disabled:opacity-50"
+            className="px-4 py-2 rounded-xl bg-gradient-to-r from-brand-600 to-slate-600 hover:from-brand-500 hover:to-slate-500 text-white text-xs font-bold shadow-lg shadow-brand-500/25 flex items-center gap-2 transition-all disabled:opacity-50"
           >
             <RefreshCw className={`w-4 h-4 ${isRunningInference ? 'animate-spin' : ''}`} />
             <span>{isRunningInference ? 'Extracting Features & Predicting...' : 'Run ML Pipeline'}</span>

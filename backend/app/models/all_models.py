@@ -99,6 +99,10 @@ class Activity(Base):
     actual_duration = Column(Integer, nullable=True) # in days
     start_date = Column(Date, nullable=False)
     end_date = Column(Date, nullable=False)
+    baseline_task_id = Column(Integer, nullable=True)
+    baseline_start_date = Column(Date, nullable=True)
+    baseline_end_date = Column(Date, nullable=True)
+    baseline_source_file = Column(String(255), nullable=True)
     actual_start_date = Column(Date, nullable=True)
     actual_end_date = Column(Date, nullable=True)
     boq_item_id = Column(Integer, ForeignKey("boq_items.id", ondelete="SET NULL"), nullable=True)
@@ -547,6 +551,8 @@ class SiteEnvironmentalLog(Base):
     weather_condition = Column(String(100), default="Clear") # Clear, Cloudy, Rain, High Wind, Extreme Heat, Storm
     humidity_percent = Column(Float, default=55.0)
     rainfall_mm = Column(Float, default=0.0)
+    weather_report_filename = Column(String(255), nullable=True)
+    weather_report_raw_text = Column(Text, nullable=True)
 
     # Soil report fields
     soil_type = Column(String(100), default="Sandy Loam")
@@ -604,14 +610,14 @@ class GeotechnicalReport(Base):
     raw_text = Column(Text, nullable=True)
 
     # Governing strata parameters
-    primary_rock_type = Column(String(100), default="Hard Basalt")
-    strata_classification = Column(String(100), default="Hard Rock / Bedrock")
-    rock_quality_designation_rqd = Column(Float, default=65.0)
-    unconfined_compressive_strength_mpa = Column(Float, default=85.0)
-    weathering_grade = Column(String(50), default="W2 (Slightly Weathered)")
-    rock_mass_rating_rmr = Column(Integer, default=68)
-    excavability_class = Column(String(50), default="Class IV (Heavy Breaker / Drilling)")
-    water_table_depth_m = Column(Float, default=3.5)
+    primary_rock_type = Column(String(100), nullable=True)
+    strata_classification = Column(String(100), nullable=True)
+    rock_quality_designation_rqd = Column(Float, nullable=True)
+    unconfined_compressive_strength_mpa = Column(Float, nullable=True)
+    weathering_grade = Column(String(50), nullable=True)
+    rock_mass_rating_rmr = Column(Integer, nullable=True)
+    excavability_class = Column(String(50), nullable=True)
+    water_table_depth_m = Column(Float, nullable=True)
 
     # Excavation geometry & quantities
     excavation_area_sqm = Column(Float, default=1200.0)
@@ -687,4 +693,3 @@ class GeotechAPIAuditLog(Base):
     created_at = Column(DateTime, default=datetime.datetime.utcnow, index=True)
 
     api_key_rel = relationship("GeotechAPIKey", back_populates="audit_logs")
-

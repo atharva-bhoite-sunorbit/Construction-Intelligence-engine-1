@@ -167,12 +167,12 @@ export const getStrata3DShading = (materialKey?: string, isRock?: boolean, ucs?:
   }
   if (k.includes('basalt')) {
     return {
-      leftTone: '#0891b2',
-      leftToneEnd: '#0e7490',
-      rightTone: '#083344',
-      topTone: '#22d3ee',
-      stroke: '#67e8f9',
-      textBadge: 'text-cyan-300',
+      leftTone: '#0f766e',
+      leftToneEnd: '#115e59',
+      rightTone: '#134e4a',
+      topTone: '#2dd4bf',
+      stroke: '#5eead4',
+      textBadge: 'text-teal-300',
       patternType: 'bedrock_boulders',
     };
   }
@@ -189,23 +189,23 @@ export const getStrata3DShading = (materialKey?: string, isRock?: boolean, ucs?:
   }
   if (k.includes('gneiss')) {
     return {
-      leftTone: '#4f46e5',
-      leftToneEnd: '#4338ca',
-      rightTone: '#1e1b4b',
-      topTone: '#818cf8',
-      stroke: '#c7d2fe',
-      textBadge: 'text-indigo-300',
+      leftTone: '#475569',
+      leftToneEnd: '#334155',
+      rightTone: '#1e293b',
+      topTone: '#94a3b8',
+      stroke: '#cbd5e1',
+      textBadge: 'text-slate-300',
       patternType: 'bedrock_boulders',
     };
   }
   if (k.includes('quartzite')) {
     return {
-      leftTone: '#06b6d4',
-      leftToneEnd: '#0891b2',
-      rightTone: '#164e63',
-      topTone: '#67e8f9',
-      stroke: '#a5f3fc',
-      textBadge: 'text-cyan-300',
+      leftTone: '#0f766e',
+      leftToneEnd: '#115e59',
+      rightTone: '#134e4a',
+      topTone: '#2dd4bf',
+      stroke: '#99f6e4',
+      textBadge: 'text-teal-300',
       patternType: 'bedrock_boulders',
     };
   }
@@ -222,12 +222,12 @@ export const getStrata3DShading = (materialKey?: string, isRock?: boolean, ucs?:
   }
   if (isRock || (ucs && ucs > 25)) {
     return {
-      leftTone: '#2563eb',
-      leftToneEnd: '#1d4ed8',
-      rightTone: '#172554',
-      topTone: '#60a5fa',
-      stroke: '#93c5fd',
-      textBadge: 'text-blue-300',
+      leftTone: '#475569',
+      leftToneEnd: '#334155',
+      rightTone: '#1e293b',
+      topTone: '#94a3b8',
+      stroke: '#cbd5e1',
+      textBadge: 'text-amber-300',
       patternType: 'bedrock_boulders',
     };
   }
@@ -376,11 +376,11 @@ export const REFERENCE_HIGHWAY_LAYERS: PavementLayerDefinition[] = [
     subtitle: 'High-Tensile Biaxial Reinforcement & Filtration',
     category: 'Geosynthetic Layer',
     thicknessMm: 60,
-    thicknessDisplay: 'Structural Grid & Membrane (Cyan)',
+    thicknessDisplay: 'Structural Grid & Membrane (Slate)',
     depthRangeDisplay: '0.68 m - 0.74 m EGL',
     materialKey: 'quartzite',
-    fillLeft: '#0284c7',
-    fillRight: '#0369a1',
+    fillLeft: '#64748b',
+    fillRight: '#475569',
     top_m: 0.68,
     bottom_m: 0.74,
     thickness_m: 0.06,
@@ -797,12 +797,12 @@ export const IsometricGeologicalCube: React.FC<IsometricGeologicalCubeProps> = (
             onClick={() => setShowWaterTable(!showWaterTable)}
             className={`px-2.5 py-1.5 rounded-xl border text-xs font-semibold flex items-center gap-1.5 transition-all ${
               showWaterTable
-                ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40 shadow-xs'
+                ? 'bg-teal-500/20 text-teal-300 border-teal-500/40 shadow-xs'
                 : 'bg-slate-950 text-slate-500 border-slate-800'
             }`}
             title="Toggle Groundwater Table plane"
           >
-            <Waves className="w-3.5 h-3.5 text-cyan-400" />
+            <Waves className="w-3.5 h-3.5 text-teal-400" />
             GWT
           </button>
 
@@ -839,7 +839,7 @@ export const IsometricGeologicalCube: React.FC<IsometricGeologicalCubeProps> = (
           <div
             className="absolute inset-0 opacity-15 pointer-events-none"
             style={{
-              backgroundImage: `radial-gradient(circle at 50% 30%, #38bdf8 0%, transparent 60%), radial-gradient(#334155 1px, transparent 1px)`,
+              backgroundImage: `radial-gradient(circle at 50% 30%, #64748b 0%, transparent 60%), radial-gradient(#334155 1px, transparent 1px)`,
               backgroundSize: '100% 100%, 28px 28px',
             }}
           />
@@ -956,9 +956,9 @@ export const IsometricGeologicalCube: React.FC<IsometricGeologicalCubeProps> = (
                 </linearGradient>
 
                 <linearGradient id={`${uid}-grad-watertable`} x1="0%" y1="0%" x2="100%" y2="0%">
-                  <stop offset="0%" stopColor="#06b6d4" stopOpacity="0.65" />
-                  <stop offset="50%" stopColor="#38bdf8" stopOpacity="0.85" />
-                  <stop offset="100%" stopColor="#0284c7" stopOpacity="0.65" />
+                  <stop offset="0%" stopColor="#0f766e" stopOpacity="0.65" />
+                  <stop offset="50%" stopColor="#14b8a6" stopOpacity="0.85" />
+                  <stop offset="100%" stopColor="#0d9488" stopOpacity="0.65" />
                 </linearGradient>
               </defs>
 
@@ -1064,7 +1064,7 @@ export const IsometricGeologicalCube: React.FC<IsometricGeologicalCubeProps> = (
                           <circle cx="0" cy="12" r="3" fill="#71717a" />
                           <circle cx="16" cy="12" r="3" fill="#71717a" />
                           <rect x="-18" y="-6" width="36" height="15" rx="3" fill="#f59e0b" stroke="#d97706" strokeWidth="1" />
-                          <rect x="-14" y="-4" width="14" height="9" rx="1.5" fill="#38bdf8" opacity="0.75" />
+                          <rect x="-14" y="-4" width="14" height="9" rx="1.5" fill="#cbd5e1" opacity="0.75" />
                           <path d="M12,-2 L32,-16 L48,-6 L56,4" stroke="#d97706" strokeWidth="4" strokeLinecap="round" fill="none" />
                           <polygon points="54,2 62,6 58,12 52,6" fill="#18181b" />
                         </g>
@@ -1120,7 +1120,7 @@ export const IsometricGeologicalCube: React.FC<IsometricGeologicalCubeProps> = (
                   >
                     {/* Exploded alignment guide dashed lines */}
                     {explodeFactor > 0.1 && index > 0 && (
-                      <g stroke="#38bdf8" strokeWidth="1" strokeDasharray="3,3" opacity="0.4">
+                      <g stroke="#94a3b8" strokeWidth="1" strokeDasharray="3,3" opacity="0.4">
                         <line x1={tl.x} y1={tl.y} x2={tl.x} y2={tl.y - explodeFactor * 16} />
                         <line x1={tf.x} y1={tf.y} x2={tf.x} y2={tf.y - explodeFactor * 16} />
                         <line x1={tr.x} y1={tr.y} x2={tr.x} y2={tr.y - explodeFactor * 16} />
@@ -1262,7 +1262,7 @@ export const IsometricGeologicalCube: React.FC<IsometricGeologicalCubeProps> = (
                         <polygon
                           points={`${wtB.x},${wtB.y} ${wtR.x},${wtR.y} ${wtF.x},${wtF.y} ${wtL.x},${wtL.y}`}
                           fill={`url(#${uid}-grad-watertable)`}
-                          stroke="#38bdf8"
+                          stroke="#14b8a6"
                           strokeWidth="2"
                           strokeDasharray="6,4"
                           className="animate-pulse"
@@ -1272,13 +1272,13 @@ export const IsometricGeologicalCube: React.FC<IsometricGeologicalCubeProps> = (
                         <path
                           d={`M${wtL.x},${wtL.y} Q${(wtL.x + wtF.x) / 2},${(wtL.y + wtF.y) / 2 - 4} ${wtF.x},${wtF.y} Q${(wtF.x + wtR.x) / 2},${(wtR.y + wtR.y) / 2 - 4} ${wtR.x},${wtR.y}`}
                           fill="none"
-                          stroke="#e0f2fe"
+                          stroke="#ccfbf1"
                           strokeWidth="1.5"
                         />
 
                         {/* GWT Callout Badge */}
                         <g transform={`translate(${wtR.x + 10}, ${wtR.y - 10})`}>
-                          <rect x="0" y="0" width="145" height="22" rx="4" fill="#0369a1" stroke="#38bdf8" strokeWidth="1" />
+                          <rect x="0" y="0" width="145" height="22" rx="4" fill="#0f766e" stroke="#14b8a6" strokeWidth="1" />
                           <text x="72" y="15" fill="#ffffff" fontSize="9.5" fontWeight="bold" textAnchor="middle" fontFamily="monospace">
                             🌊 GWT Horizon @ ~{waterTableDepth != null ? waterTableDepth.toFixed(1) : '3.8'}m
                           </text>
@@ -1505,7 +1505,7 @@ export const IsometricGeologicalCube: React.FC<IsometricGeologicalCubeProps> = (
                 <span className="text-[10px] uppercase font-semibold text-slate-500 block">
                   Water Horizon
                 </span>
-                <div className="text-sm font-black text-cyan-400 mt-0.5 font-mono truncate" title={currentLayer.specs.permeability}>
+                <div className="text-sm font-black text-teal-400 mt-0.5 font-mono truncate" title={currentLayer.specs.permeability}>
                   {currentLayer.specs.permeability}
                 </div>
               </div>

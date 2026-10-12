@@ -46,7 +46,7 @@ export const SptAndPropertiesView: React.FC<SptAndPropertiesViewProps> = ({ inte
       return <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-amber-100 text-amber-800 border border-amber-200">Loose (N=4–10)</span>;
     }
     if (text.toLowerCase().includes('medium')) {
-      return <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-blue-100 text-blue-800 border border-blue-200">Medium Dense (N=10–30)</span>;
+      return <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-amber-100 text-amber-800 border border-amber-200">Medium Dense (N=10–30)</span>;
     }
     if (text.toLowerCase().includes('very dense')) {
       return <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-purple-100 text-purple-800 border border-purple-200">Very Dense / Refusal (N&gt;50)</span>;
@@ -81,10 +81,10 @@ export const SptAndPropertiesView: React.FC<SptAndPropertiesViewProps> = ({ inte
   return (
     <div className="space-y-8 font-sans">
       {/* 1. Header Banner */}
-      <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white rounded-2xl p-6 shadow-md border border-slate-800">
+      <div className="bg-gradient-to-r from-slate-900 via-slate-950 to-slate-900 text-white rounded-2xl p-6 shadow-md border border-slate-800">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="space-y-1">
-            <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-indigo-500/20 text-indigo-300 text-xs font-semibold border border-indigo-500/30">
+            <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-slate-500/20 text-slate-300 text-xs font-semibold border border-slate-500/30">
               <Scale className="w-3.5 h-3.5" />
               <span>IS 2131 / IS 1498 / IS 6403 Soil Mechanics Database</span>
             </div>
@@ -121,10 +121,10 @@ export const SptAndPropertiesView: React.FC<SptAndPropertiesViewProps> = ({ inte
         </div>
 
         <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-2xs">
-          <span className="text-[11px] font-bold text-indigo-600 uppercase tracking-wider block font-mono">
+          <span className="text-[11px] font-bold text-slate-600 uppercase tracking-wider block font-mono">
             Soil Classification
           </span>
-          <div className="text-2xl font-bold text-indigo-950 mt-1 font-mono">
+          <div className="text-2xl font-bold text-slate-950 mt-1 font-mono">
             {soilClass.uscs_classification?.display || soilClass.is_soil_classification?.display || 'SM / CL'}
           </div>
           <span className="text-xs text-slate-500 mt-0.5 block truncate">
@@ -160,7 +160,7 @@ export const SptAndPropertiesView: React.FC<SptAndPropertiesViewProps> = ({ inte
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
           <div>
             <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
-              <Activity className="w-4 h-4 text-indigo-600" />
+              <Activity className="w-4 h-4 text-slate-600" />
               Standard Penetration Test (SPT) Profile & Relative Density
             </h3>
             <p className="text-xs text-slate-500 mt-0.5">
@@ -176,7 +176,7 @@ export const SptAndPropertiesView: React.FC<SptAndPropertiesViewProps> = ({ inte
                 <select
                   value={selectedBoreholeFilter}
                   onChange={(e) => setSelectedBoreholeFilter(e.target.value)}
-                  className="text-xs bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 font-medium text-slate-700 focus:outline-hidden focus:ring-1 focus:ring-indigo-500"
+                  className="text-xs bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 font-medium text-slate-700 focus:outline-hidden focus:ring-1 focus:ring-slate-500"
                 >
                   <option value="all">All Boreholes ({boreholeIds.length})</option>
                   {boreholeIds.map((bh) => (
@@ -194,7 +194,7 @@ export const SptAndPropertiesView: React.FC<SptAndPropertiesViewProps> = ({ inte
                 placeholder="Search soil or stratum..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="text-xs bg-slate-50 border border-slate-200 rounded-lg pl-8 pr-3 py-1.5 text-slate-700 focus:outline-hidden focus:ring-1 focus:ring-indigo-500 w-44"
+                className="text-xs bg-slate-50 border border-slate-200 rounded-lg pl-8 pr-3 py-1.5 text-slate-700 focus:outline-hidden focus:ring-1 focus:ring-slate-500 w-44"
               />
             </div>
           </div>
@@ -238,7 +238,7 @@ export const SptAndPropertiesView: React.FC<SptAndPropertiesViewProps> = ({ inte
                           : (row.spt_n || 0) >= 30
                           ? 'bg-emerald-100 text-emerald-900 border border-emerald-300'
                           : (row.spt_n || 0) >= 10
-                          ? 'bg-blue-100 text-blue-900 border border-blue-300'
+                          ? 'bg-amber-100 text-amber-900 border border-amber-300'
                           : 'bg-amber-100 text-amber-900 border border-amber-300'
                       }`}>
                         {row.spt_n ?? '-'}
@@ -301,9 +301,9 @@ export const SptAndPropertiesView: React.FC<SptAndPropertiesViewProps> = ({ inte
                   {soilClass.gradation?.sand_percentage ?? '58%'}
                 </span>
               </div>
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-2">
-                <span className="text-[10px] text-blue-700 font-bold block">Silt</span>
-                <span className="text-sm font-bold text-blue-900 font-mono">
+              <div className="bg-amber-50 border border-amber-200 rounded-lg p-2">
+                <span className="text-[10px] text-amber-700 font-bold block">Silt</span>
+                <span className="text-sm font-bold text-amber-900 font-mono">
                   {soilClass.gradation?.silt_percentage ?? '22%'}
                 </span>
               </div>
@@ -313,9 +313,9 @@ export const SptAndPropertiesView: React.FC<SptAndPropertiesViewProps> = ({ inte
                   {soilClass.gradation?.clay_percentage ?? '8%'}
                 </span>
               </div>
-              <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-2">
-                <span className="text-[10px] text-indigo-700 font-bold block">Fines (&lt;75μ)</span>
-                <span className="text-sm font-bold text-indigo-900 font-mono">
+              <div className="bg-slate-50 border border-slate-200 rounded-lg p-2">
+                <span className="text-[10px] text-slate-700 font-bold block">Fines (&lt;75μ)</span>
+                <span className="text-sm font-bold text-slate-900 font-mono">
                   {soilClass.gradation?.fines_percentage ?? '30%'}
                 </span>
               </div>
@@ -334,9 +334,9 @@ export const SptAndPropertiesView: React.FC<SptAndPropertiesViewProps> = ({ inte
                 <span className="text-[10px] text-slate-500 font-bold block">Plastic Limit (PL)</span>
                 <span className="text-sm font-bold text-slate-800 font-mono">{soilClass.plastic_limit?.display || '21%'}</span>
               </div>
-              <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-2">
-                <span className="text-[10px] text-indigo-700 font-bold block">Plasticity Index (PI)</span>
-                <span className="text-sm font-bold text-indigo-900 font-mono">{soilClass.plasticity_index?.display || '11%'}</span>
+              <div className="bg-slate-50 border border-slate-200 rounded-lg p-2">
+                <span className="text-[10px] text-slate-700 font-bold block">Plasticity Index (PI)</span>
+                <span className="text-sm font-bold text-slate-900 font-mono">{soilClass.plasticity_index?.display || '11%'}</span>
               </div>
             </div>
             <p className="text-[11px] text-slate-500 italic mt-1">
@@ -348,7 +348,7 @@ export const SptAndPropertiesView: React.FC<SptAndPropertiesViewProps> = ({ inte
         {/* Engineering Properties Envelopes Card */}
         <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs space-y-4">
           <div className="flex items-center gap-2 pb-2 border-b border-slate-100">
-            <Beaker className="w-4 h-4 text-indigo-600" />
+            <Beaker className="w-4 h-4 text-slate-600" />
             <h3 className="text-base font-bold text-slate-900">
               Geotechnical Engineering Parameters (Depth-Specific)
             </h3>
@@ -465,14 +465,14 @@ export const SptAndPropertiesView: React.FC<SptAndPropertiesViewProps> = ({ inte
             </p>
           </div>
 
-          <div className="p-4 bg-blue-50/60 rounded-xl border border-blue-200 space-y-2">
-            <span className="text-xs font-bold text-blue-800 uppercase block font-mono">
+          <div className="p-4 bg-amber-50/60 rounded-xl border border-amber-200 space-y-2">
+            <span className="text-xs font-bold text-amber-800 uppercase block font-mono">
               Maximum Estimated Settlement
             </span>
-            <div className="text-2xl font-bold text-blue-950 font-mono">
+            <div className="text-2xl font-bold text-amber-950 font-mono">
               {settlement.maximum_settlement?.display || settlement.allowable_settlement?.display || '< 12 mm'}
             </div>
-            <p className="text-[11px] text-blue-800/80">
+            <p className="text-[11px] text-amber-800/80">
               Permissible limit for raft/isolated footing per IS 1904: <span className="font-bold font-mono">40–75 mm</span>
             </p>
           </div>
@@ -544,7 +544,7 @@ export const SptAndPropertiesView: React.FC<SptAndPropertiesViewProps> = ({ inte
         {/* Chemical Tests & Concrete Protection */}
         <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs space-y-4">
           <div className="flex items-center gap-2 pb-2 border-b border-slate-100">
-            <Beaker className="w-4 h-4 text-cyan-600" />
+            <Beaker className="w-4 h-4 text-teal-600" />
             <h3 className="text-base font-bold text-slate-900">
               Chemical Aggressiveness & Substructure Protection (IS 456)
             </h3>
@@ -574,16 +574,16 @@ export const SptAndPropertiesView: React.FC<SptAndPropertiesViewProps> = ({ inte
             </div>
           </div>
 
-          <div className="p-3 bg-cyan-50/60 rounded-xl border border-cyan-200 space-y-1 text-xs">
-            <div className="flex items-center justify-between font-bold text-cyan-950">
+          <div className="p-3 bg-teal-50/60 rounded-xl border border-teal-200 space-y-1 text-xs">
+            <div className="flex items-center justify-between font-bold text-teal-950">
               <span>IS 456 Exposure Class:</span>
               <span>Moderate Exposure</span>
             </div>
-            <div className="flex items-center justify-between text-cyan-900">
+            <div className="flex items-center justify-between text-teal-900">
               <span>Recommended Cement:</span>
               <span className="font-semibold">{chemical.recommended_cement?.display || 'OPC or PPC (IS 456 Table 4)'}</span>
             </div>
-            <div className="flex items-center justify-between text-cyan-900">
+            <div className="flex items-center justify-between text-teal-900">
               <span>Minimum Cover to Reinforcement:</span>
               <span className="font-semibold font-mono">50 mm (Foundation)</span>
             </div>

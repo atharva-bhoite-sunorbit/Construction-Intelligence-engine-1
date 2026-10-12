@@ -33,6 +33,7 @@ def _format_env_log_response(log: SiteEnvironmentalLog) -> dict:
         "weather_condition": log.weather_condition,
         "humidity_percent": log.humidity_percent,
         "rainfall_mm": log.rainfall_mm,
+        "weather_report_filename": log.weather_report_filename,
         "soil_type": log.soil_type,
         "safe_bearing_capacity_kpa": log.safe_bearing_capacity_kpa,
         "moisture_content_percent": log.moisture_content_percent,
@@ -142,6 +143,41 @@ async def parse_soil_report(request: Request):
     parsed = WeatherSoilService.parse_soil_report_content(raw_text=raw_text, filename=filename)
     parsed["raw_text"] = raw_text
     parsed["filename"] = filename
+    return parsed
+
+@router.post("/api/environmental-analysis/parse-weather-report")
+async def parse_weather_report(request: Request):
+    """Extracts weather observations from an uploaded site or forecast report."""
+    content_type = request.headers.get("content-type", "")
+    raw_text = ""
+    filename = None
+
+    if "multipart/form-data" in content_type:
+        form = await request.form()
+        uploaded_file = form.get("file")
+        filename = getattr(uploaded_file, "filename", None)
+        if not uploaded_file or not hasattr(uploaded_file, "read"):
+            raise HTTPException(status_code=422, detail="Upload a weather report file to analyze.")
+        content = await uploaded_file.read()
+        try:
+            raw_text, _ = extract_text_from_file(content, filename or "weather-report.txt")
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+    else:
+        try:
+            payload = await request.json()
+            raw_text = payload.get("raw_text", "")
+            filename = payload.get("filename")
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail="Provide readable weather report text or upload a report.") from exc
+        if not isinstance(payload, dict):
+            raise HTTPException(status_code=422, detail="Weather report payload must be a JSON object.")
+
+    try:
+        parsed = WeatherSoilService.parse_weather_report_content(raw_text=raw_text, filename=filename)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    parsed["raw_text"] = raw_text
     return parsed
 
 # Validation endpoints

@@ -1,7 +1,7 @@
 import axios from 'axios';
 import {
   User, Project, Activity, ActivityDependency, ResourceSummary,
-  DailyProgress, Blocker, SiteObservation, MLPredictionItem,
+  DailyProgress, Blocker, HindranceSubmissionReceipt, SiteObservation, MLPredictionItem,
   RiskItem, ImpactAnalysisResponse, CompletionForecast,
   AIRecommendation, AIManagementSummary, DashboardStats,
   EnvironmentalAnalysis, ValidationSubmission, SiteValidationRecord,
@@ -85,6 +85,13 @@ export const apiClient = {
   // Activities & Auto Plan
   getActivities: async (projectId: number, params?: any): Promise<Activity[]> => {
     const res = await api.get(`/api/projects/${projectId}/activities`, { params });
+    return res.data;
+  },
+
+  getActivitiesByDate: async (projectId: number, targetDate?: string): Promise<any> => {
+    const res = await api.get(`/api/projects/${projectId}/activities/by-date`, {
+      params: targetDate ? { target_date: targetDate } : {},
+    });
     return res.data;
   },
 
@@ -204,12 +211,12 @@ export const apiClient = {
     return res.data;
   },
 
-  createBlocker: async (projectId: number, data: any): Promise<Blocker> => {
+  createBlocker: async (projectId: number, data: any): Promise<HindranceSubmissionReceipt> => {
     const res = await api.post(`/api/projects/${projectId}/blockers`, data);
     return res.data;
   },
 
-  createHindrance: async (projectId: number, data: any): Promise<Blocker> => {
+  createHindrance: async (projectId: number, data: any): Promise<HindranceSubmissionReceipt> => {
     const res = await api.post(`/api/projects/${projectId}/blockers`, data);
     return res.data;
   },
@@ -359,6 +366,26 @@ export const apiClient = {
     return res.data;
   },
 
+  parseWeatherReport: async (file: File): Promise<{
+    temperature_c: number | null;
+    wind_speed_kmh: number | null;
+    weather_condition: string | null;
+    humidity_percent: number | null;
+    rainfall_mm: number | null;
+    weather_report_filename: string;
+    extracted_fields: string[];
+    warnings: string[];
+    summary: string;
+    raw_text: string;
+  }> => {
+    const formData = new FormData();
+    formData.append('file', file);
+    const res = await api.post('/api/environmental-analysis/parse-weather-report', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    });
+    return res.data;
+  },
+
   // Validation Checklists
   validateDailyProgress: async (progressId: number, data: ValidationSubmission): Promise<DailyProgress> => {
     const res = await api.post(`/api/progress/${progressId}/validate`, data);
@@ -481,5 +508,3 @@ export const apiClient = {
     return res.data;
   }
 };
-
-

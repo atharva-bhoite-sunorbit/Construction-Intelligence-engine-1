@@ -42,7 +42,7 @@ export const GeotechnicalCompareModal: React.FC<GeotechnicalCompareModalProps> =
       <div className="bg-white rounded-2xl shadow-xl border border-slate-200 max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col animate-in fade-in zoom-in-95 duration-150">
         <div className="p-4 border-b border-slate-200 flex items-center justify-between bg-slate-50">
           <div className="flex items-center gap-2">
-            <div className="p-1.5 rounded-lg bg-indigo-50 text-indigo-700 border border-indigo-200">
+            <div className="p-1.5 rounded-lg bg-slate-50 text-slate-700 border border-slate-200">
               <GitCompare className="w-4 h-4" />
             </div>
             <div>
@@ -102,7 +102,7 @@ export const GeotechnicalCompareModal: React.FC<GeotechnicalCompareModalProps> =
             <button
               onClick={handleRunComparison}
               disabled={isLoading || !reportAId || !reportBId || reportAId === reportBId}
-              className="px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-xs font-bold shadow-xs transition-colors"
+              className="px-5 py-2 rounded-xl bg-slate-600 hover:bg-slate-700 disabled:opacity-50 text-white text-xs font-bold shadow-xs transition-colors"
             >
               {isLoading ? 'Comparing...' : 'Compare Side by Side'}
             </button>
@@ -117,8 +117,8 @@ export const GeotechnicalCompareModal: React.FC<GeotechnicalCompareModalProps> =
           {comparisonData && (
             <div className="space-y-4 pt-2 border-t border-slate-200">
               <div className="grid grid-cols-2 gap-4">
-                <div className="p-4 rounded-xl bg-blue-50/50 border border-blue-200 space-y-2">
-                  <span className="text-[10px] font-bold text-blue-700 uppercase tracking-wider font-mono">
+                <div className="p-4 rounded-xl bg-amber-50/50 border border-amber-200 space-y-2">
+                  <span className="text-[10px] font-bold text-amber-700 uppercase tracking-wider font-mono">
                     PROJECT A: {comparisonData.report_a.id}
                   </span>
                   <h4 className="text-sm font-bold text-slate-900">
@@ -135,11 +135,11 @@ export const GeotechnicalCompareModal: React.FC<GeotechnicalCompareModalProps> =
                     </div>
                     <div className="flex justify-between">
                       <span className="text-slate-500">Bedrock Type:</span>
-                      <span className="font-bold text-cyan-700">{comparisonData.report_a.primary_rock}</span>
+                      <span className="font-bold text-teal-700">{comparisonData.report_a.primary_rock}</span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-slate-500">Water Table:</span>
-                      <span className="font-bold text-blue-700">{comparisonData.report_a.groundwater}</span>
+                      <span className="font-bold text-amber-700">{comparisonData.report_a.groundwater}</span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-slate-500">Bearing Capacity:</span>
@@ -170,11 +170,11 @@ export const GeotechnicalCompareModal: React.FC<GeotechnicalCompareModalProps> =
                     </div>
                     <div className="flex justify-between">
                       <span className="text-slate-500">Bedrock Type:</span>
-                      <span className="font-bold text-cyan-700">{comparisonData.report_b.primary_rock}</span>
+                      <span className="font-bold text-teal-700">{comparisonData.report_b.primary_rock}</span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-slate-500">Water Table:</span>
-                      <span className="font-bold text-blue-700">{comparisonData.report_b.groundwater}</span>
+                      <span className="font-bold text-amber-700">{comparisonData.report_b.groundwater}</span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-slate-500">Bearing Capacity:</span>

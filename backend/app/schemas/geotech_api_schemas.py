@@ -93,8 +93,8 @@ class GeotechReportOverviewResponse(BaseModel):
     report_id: str = Field(..., description="Unique Geotechnical Report identifier, e.g. GT-1001")
     project_name: str = Field(..., description="Associated construction project name")
     status: str = Field(default="analyzed", description="Processing state: analyzed, pending, pushed_to_schedule")
-    boreholes: int = Field(default=1, description="Number of investigated boreholes")
-    maximum_depth_m: float = Field(..., description="Maximum exploration depth in meters")
+    boreholes: int = Field(default=0, description="Number of boreholes identified in the report")
+    maximum_depth_m: Optional[float] = Field(default=None, description="Maximum exploration depth in meters, when reported")
     groundwater_level_m: Optional[float] = Field(default=None, description="Depth to groundwater table in meters")
     soil_summary: SoilSummary
     alerts: List[GeotechAlertItem] = Field(default_factory=list)
@@ -116,7 +116,7 @@ class BoreholeLayer(BaseModel):
 
 class BoreholeDetail(BaseModel):
     borehole_id: str
-    depth_m: float
+    depth_m: Optional[float] = None
     ground_level_m: Optional[float] = None
     water_table_depth_m: Optional[float] = None
     coordinates: Optional[Dict[str, Any]] = None
@@ -137,7 +137,7 @@ class SoilLayerDetail(BaseModel):
     depth_to_m: float
     thickness_m: float
     soil_type: str
-    classification: str
+    classification: Optional[str] = None
     color: Optional[str] = None
     consistency_density: Optional[str] = None
     spt_n_range: Optional[str] = None

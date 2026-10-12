@@ -35,83 +35,177 @@ def extract_pages_from_pdf(content: bytes) -> List[str]:
     Extract text page-by-page from raw PDF bytes.
     Includes OCR fallback and disk caching for scanned image-only PDFs.
     """
-    pages: List[str] = []
-    reader = None
     try:
-        reader = PdfReader(io.BytesIO(content))
-        for p in reader.pages:
-            t = p.extract_text() or ""
-            pages.append(t)
-    except Exception as e:
-        print(f"PDF extraction error: {e}")
+        reader = PdfReader(io.BytesIO(content), strict=False)
+        if reader.is_encrypted and not reader.decrypt(""):
+            raise ValueError("This PDF is password-protected. Upload an unlocked copy.")
+        pages = [page.extract_text() or "" for page in reader.pages]
+    except ValueError:
+        raise
+    except Exception as exc:
+        raise ValueError("The PDF is damaged or could not be opened.") from exc
 
-    total_chars = sum(len(p.strip()) for p in pages)
-    if total_chars >= 50:
+    if not pages:
+        raise ValueError("The PDF does not contain any readable pages.")
+
+    pages_to_ocr = [index for index, text in enumerate(pages) if len(text.strip()) < 30]
+    if not pages_to_ocr:
         return pages
 
-    # Scanned PDF path: check local disk cache first
+    file_hash = hashlib.sha256(content).hexdigest()
+    cache_file = OCR_CACHE_DIR / f"{file_hash}.json"
     try:
-        file_hash = hashlib.sha256(content).hexdigest()
         OCR_CACHE_DIR.mkdir(parents=True, exist_ok=True)
-        cache_file = OCR_CACHE_DIR / f"{file_hash}.json"
-
         if cache_file.exists():
             with open(cache_file, "r", encoding="utf-8") as f:
                 cached_pages = json.load(f)
-                if isinstance(cached_pages, list) and len(cached_pages) > 0:
-                    return cached_pages
-    except Exception as cache_err:
-        print(f"OCR cache read note: {cache_err}")
+                if (
+                    isinstance(cached_pages, list)
+                    and len(cached_pages) == len(pages)
+                    and all(isinstance(text, str) for text in cached_pages)
+                ):
+                    return [
+                        pages[index] if len(pages[index].strip()) >= 30 else cached_pages[index]
+                        for index in range(len(pages))
+                    ]
+    except (OSError, json.JSONDecodeError):
+        pass
 
-    # Fallback to RapidOCR for scanned pages
-    if reader and reader.pages:
+    try:
+        import numpy as np
+        from PIL import Image
+        from rapidocr_onnxruntime import RapidOCR
+    except ImportError as exc:
+        if sum(len(text.strip()) for text in pages) < 50:
+            raise ValueError(
+                "This PDF appears to be scanned and OCR is unavailable. Install RapidOCR or upload a searchable PDF."
+            ) from exc
+        return pages
+
+    ocr = RapidOCR()
+    for index in pages_to_ocr:
         try:
-            from rapidocr_onnxruntime import RapidOCR
-            import numpy as np
-            from PIL import Image
-            from concurrent.futures import ThreadPoolExecutor
+            extracted: List[str] = []
+            for embedded_image in reader.pages[index].images:
+                image = embedded_image.image.convert("RGB")
+                if max(image.size) > 2400:
+                    image.thumbnail((2400, 2400), Image.Resampling.LANCZOS)
+                result, _ = ocr(np.asarray(image))
+                if result:
+                    extracted.extend(line[1] for line in result if len(line) > 1 and line[1].strip())
+            if extracted:
+                pages[index] = "\n".join(extracted)
+        except Exception as exc:
+            raise ValueError(f"OCR could not read page {index + 1} of the PDF.") from exc
 
-            ocr = RapidOCR()
-            ocr_pages = [""] * len(reader.pages)
-
-            def ocr_single_page(args):
-                idx, page = args
-                raw_t = page.extract_text() or ""
-                if len(raw_t.strip()) >= 30:
-                    return idx, raw_t
-                if not page.images:
-                    return idx, ""
-                try:
-                    img = page.images[0].image
-                    max_dim = max(img.size)
-                    if max_dim > 1600:
-                        scale = 1600.0 / max_dim
-                        img = img.resize((int(img.width * scale), int(img.height * scale)), Image.Resampling.BILINEAR)
-                    res, _ = ocr(np.array(img))
-                    if res:
-                        return idx, "\n".join(line[1] for line in res)
-                except Exception as page_err:
-                    print(f"OCR page {idx+1} error: {page_err}")
-                return idx, ""
-
-            with ThreadPoolExecutor(max_workers=4) as ex:
-                for idx, text in ex.map(ocr_single_page, enumerate(reader.pages)):
-                    ocr_pages[idx] = text
-
-            try:
-                with open(cache_file, "w", encoding="utf-8") as f:
-                    json.dump(ocr_pages, f, ensure_ascii=False, indent=2)
-            except Exception as w_err:
-                print(f"OCR cache write error: {w_err}")
-
-            return ocr_pages
-
-        except ImportError:
-            print("rapidocr_onnxruntime is not installed; scanned PDF cannot be OCRed.")
-        except Exception as ocr_exc:
-            print(f"Scanned PDF OCR processing failed: {ocr_exc}")
+    try:
+        OCR_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+        with open(cache_file, "w", encoding="utf-8") as f:
+            json.dump(pages, f, ensure_ascii=False)
+    except OSError:
+        pass
 
     return pages
+
+
+def _normalized_evidence(value: str) -> str:
+    return re.sub(r"\s+", " ", value).strip().casefold()
+
+
+def _numeric_values(value: Any) -> List[float]:
+    if isinstance(value, bool) or value is None:
+        return []
+    if isinstance(value, (int, float)):
+        return [float(value)]
+    if isinstance(value, dict):
+        return [
+            number
+            for child in value.values()
+            for number in _numeric_values(child)
+        ]
+    if isinstance(value, (list, tuple)):
+        return [number for child in value for number in _numeric_values(child)]
+    if isinstance(value, str):
+        numbers = [
+            float(number.replace(",", ""))
+            for number in re.findall(
+                r"(?<![\w.])[+-]?\d+(?:,\d{3})*(?:\.\d+)?",
+                value,
+            )
+        ]
+        count_words = {
+            "zero": 0.0, "one": 1.0, "two": 2.0, "three": 3.0,
+            "four": 4.0, "five": 5.0, "six": 6.0, "seven": 7.0,
+            "eight": 8.0, "nine": 9.0, "ten": 10.0,
+        }
+        numbers.extend(
+            number
+            for word, number in count_words.items()
+            if re.search(rf"\b{word}\b", value, re.IGNORECASE)
+        )
+        return numbers
+    return []
+
+
+def _string_values(value: Any) -> List[str]:
+    if isinstance(value, str):
+        return [value.strip()] if value.strip() else []
+    if isinstance(value, dict):
+        return [
+            text
+            for key, child in value.items()
+            if key != "qualifier"
+            for text in _string_values(child)
+        ]
+    if isinstance(value, (list, tuple)):
+        return [text for child in value for text in _string_values(child)]
+    return []
+
+
+def _report_field_is_supported(field: Dict[str, Any], full_text: str) -> bool:
+    source = field.get("source_text")
+    if not isinstance(source, str) or not source.strip():
+        return False
+
+    normalized_source = _normalized_evidence(source)
+    normalized_text = _normalized_evidence(full_text)
+    if normalized_source not in normalized_text and not (
+        isinstance(field.get("value"), list)
+        and all(
+            _normalized_evidence(text) in normalized_text
+            for text in _string_values(field.get("value"))
+        )
+    ):
+        return False
+
+    if not _numeric_values(field.get("value")) and any(
+        _normalized_evidence(text) not in normalized_source
+        for text in _string_values(field.get("value"))
+    ):
+        return False
+
+    source_numbers = _numeric_values(source)
+    return all(
+        any(abs(number - evidence) < 0.011 for evidence in source_numbers)
+        for number in _numeric_values(field.get("value"))
+    )
+
+
+def _verify_report_fields(value: Any, full_text: str) -> Any:
+    if isinstance(value, dict):
+        if value.get("source_type") == "REPORT" and value.get("status") == "FOUND":
+            if not _report_field_is_supported(value, full_text):
+                return missing(
+                    "The parser could not verify this value against the uploaded report text."
+                )
+            return value
+        return {
+            key: _verify_report_fields(child, full_text)
+            for key, child in value.items()
+        }
+    if isinstance(value, list):
+        return [_verify_report_fields(child, full_text) for child in value]
+    return value
 
 
 def find_first_pattern(
@@ -274,7 +368,7 @@ class GeotechnicalReportExtractor:
         standard_json = self.build_standard_json(proj, inv, bhs, found, bearing_cap, gw, exc)
 
         # Assemble unified document preserving full backward compatibility
-        return {
+        result = {
             # Backward compatible keys
             "project_information": proj,
             "investigation_information": inv,
@@ -308,6 +402,7 @@ class GeotechnicalReportExtractor:
             "foundation": standard_json.get("foundation", {}),
             "risks_summary": standard_json.get("risks", []),
         }
+        return _verify_report_fields(result, self.text)
 
     # ==============================================================
     # 1. PROJECT & SITE INFORMATION
@@ -472,17 +567,25 @@ class GeotechnicalReportExtractor:
         if m_word_count:
             w = m_word_count.group(1).lower()
             expected_count = word_to_num.get(w, int(w) if w.isdigit() else expected_count)
-            # If word says 8 boreholes, ensure we populate BH-01 to BH-08
-            if expected_count > len(found_bh_ids) and expected_count <= 20:
+            # Expand only an explicit serial range; a count alone is not a set of borehole IDs.
+            explicit_range = m_word_count.group(2) or ""
+            if (
+                expected_count > len(found_bh_ids)
+                and expected_count <= 20
+                and re.search(r"\bto\b|[-–]\s*BH", explicit_range, re.IGNORECASE)
+            ):
                 prefix = "BH-"
                 found_bh_ids = [f"{prefix}{i:02d}" for i in range(1, expected_count + 1)]
 
         # Global termination depth fallback
-        gen_term_m = [float(d) for d in re.findall(r"(?:terminated\s+at\s+(?:a\s+depth\s+of\s+|depths\s+up\s+to\s+)?|termination\s+depth\s*:\s*|depth\s+of\s*)(\d{1,2}(?:\.\d+)?)\s*m", self.text, re.IGNORECASE)]
-        default_term = max(gen_term_m) if gen_term_m else 12.0
-
         # Drilling method
-        drilling_method = "Rotary core drilling with double tube core barrel" if ("rotary" in self.text.lower() or "diamond core" in self.text.lower()) else ("Shell and auger / Wash boring" if "auger" in self.text.lower() else "Rotary drilling")
+        drilling_method = (
+            "Rotary drilling"
+            if "rotary" in self.text.lower() or "diamond core" in self.text.lower()
+            else "Shell and auger / wash boring"
+            if "auger" in self.text.lower() or "wash boring" in self.text.lower()
+            else None
+        )
 
         # Table A Pattern check: BH-01 1.50m 3.0m
         table_a_pattern = r"(BH\s*[-–_]?\s*\d{1,2})\s*[:\-–]?\s*(\d{1,2}(?:\.\d+)?)\s*m\s+(\d{1,2}(?:\.\d+)?)\s*m"
@@ -498,7 +601,7 @@ class GeotechnicalReportExtractor:
         has_bedrock = not has_negative_rock and (rock_name is not None or "hard rock" in self.text.lower() or "bedrock" in self.text.lower())
 
         # Build list of borehole objects
-        target_ids = found_bh_ids if found_bh_ids else ["BH-01"]
+        target_ids = found_bh_ids
 
         for idx, b_id in enumerate(target_ids):
             # Bidirectional groundwater matching for this borehole
@@ -527,11 +630,11 @@ class GeotechnicalReportExtractor:
                     bh_gw_status = f"Groundwater encountered at {bh_gw_depth} m"
                 else:
                     bh_gw_depth = None
-                    bh_gw_status = "Groundwater not encountered"
+                    bh_gw_status = "Not specified in report"
 
             # Specific termination depth for this borehole
             bh_term_m = re.search(rf"{re.escape(b_id)}[^\n\r]{{0,60}}?terminated\s+at\s+(\d{{1,2}}(?:\.\d+)?)\s*m", self.text, re.IGNORECASE)
-            bh_term = float(bh_term_m.group(1)) if bh_term_m else default_term
+            bh_term = float(bh_term_m.group(1)) if bh_term_m else None
 
             # Table A cwr & hard rock depths if available
             cwr_val = None
@@ -549,14 +652,20 @@ class GeotechnicalReportExtractor:
 
             # Ground RL for this borehole
             rl_match = re.search(rf"(?:{re.escape(b_id)}[^\n\r]{{0,60}}?(?:RL|level|elevation)\s*[:=\-–]?\s*([+\-]?[0-9\.]+)\s*m|(?:RL|level|elevation)[^\n\r]{{0,40}}?{re.escape(b_id)}\s*[:=\-–]?\s*([+\-]?[0-9\.]+)\s*m)", self.text, re.IGNORECASE)
-            ground_rl = float(rl_match.group(1) or rl_match.group(2)) if rl_match else 0.0
+            ground_rl = float(rl_match.group(1) or rl_match.group(2)) if rl_match else None
 
             # Grid Location for this borehole
             grid_match = re.search(rf"{re.escape(b_id)}[^\n\r]{{0,60}}?(?:Grid|Location|Chainage)\s*[:=\-–]?\s*([A-Za-z0-9\-]+)", self.text, re.IGNORECASE)
-            loc_label = grid_match.group(1) if grid_match else f"Grid {chr(65 + (idx % 8))}{(idx % 4) + 1}"
+            loc_label = grid_match.group(1) if grid_match else None
 
             # Termination Reason
-            term_reason = "Hard bedrock encountered" if has_bedrock else ("Target exploration depth reached" if bh_term >= 8.0 else "SPT Refusal")
+            term_reason = None
+            if re.search(rf"{re.escape(b_id)}[^\n\r]{{0,60}}?SPT\s+refusal", self.text, re.IGNORECASE):
+                term_reason = "SPT refusal"
+            elif re.search(rf"{re.escape(b_id)}[^\n\r]{{0,60}}?target\s+(?:exploration\s+)?depth\s+reached", self.text, re.IGNORECASE):
+                term_reason = "Target exploration depth reached"
+            elif re.search(rf"{re.escape(b_id)}[^\n\r]{{0,60}}?(?:terminated|encountered)\s+(?:on|at)\s+(?:hard\s+)?(?:bedrock|rock)", self.text, re.IGNORECASE):
+                term_reason = "Hard bedrock encountered"
 
             # Per-borehole layer sequence
             layers = self._build_borehole_layers(b_id, cwr_val, hr_val, bh_term, rock_name, has_bedrock)
@@ -568,7 +677,7 @@ class GeotechnicalReportExtractor:
                 "ground_rl_m": ground_rl,
                 "borehole_depth_m": bh_term,
                 "depth_m": bh_term,
-                "coordinates": {"x": 100.0 + idx * 25.0, "y": 200.0 + (idx % 3) * 20.0},
+                "coordinates": None,
                 "drilling_method": drilling_method,
                 "termination_reason": term_reason,
                 "groundwater": {
@@ -592,7 +701,7 @@ class GeotechnicalReportExtractor:
         b_id: str,
         cwr_d: Optional[float],
         hr_d: Optional[float],
-        term_d: float,
+        term_d: Optional[float],
         rock_name: Optional[str],
         has_bedrock: bool
     ) -> List[Dict[str, Any]]:
@@ -615,7 +724,7 @@ class GeotechnicalReportExtractor:
                     bot = float(b_str)
                     desc_clean = desc.strip()
                     spt_match = re.search(r"SPT\s*N\s*[:=]?\s*(\d+)", desc_clean, re.IGNORECASE)
-                    spt_num = int(spt_match.group(1)) if spt_match else (10 if top < 2 else (32 if top < 12 else None))
+                    spt_num = int(spt_match.group(1)) if spt_match else None
                     is_r = any(w in desc_clean.lower() for w in ["rock", "basalt", "breccia", "granite", "bedrock", "cwr"])
                     mat_clean = re.sub(r"\(.*?\)", "", desc_clean).strip()
                     layers.append({
@@ -629,10 +738,10 @@ class GeotechnicalReportExtractor:
                         "material": mat_clean,
                         "soil_description": desc_clean,
                         "description": desc_clean,
-                        "soil_classification": "Rock" if is_r else ("SM / SP" if "sand" in desc_clean.lower() else "CL / ML"),
-                        "colour": "Dark Grey" if is_r else "Brownish",
-                        "density_consistency": "Hard / Sound" if is_r else ("Dense" if (spt_num and spt_num >= 30) else "Loose to Medium Dense"),
-                        "moisture_condition": "Damp" if is_r else "Moist",
+                        "soil_classification": None,
+                        "colour": None,
+                        "density_consistency": None,
+                        "moisture_condition": None,
                         "geological_description": desc_clean,
                         "rock_description": desc_clean if is_r else None,
                         "spt_n": spt_num,
@@ -640,176 +749,60 @@ class GeotechnicalReportExtractor:
                     })
                 return layers
 
-        # 2. Otherwise synthesize from identified layer depths (CWR, hard rock, termination)
-        if cwr_d is not None and hr_d is not None:
-            # 3-layer strata: Fill/Soil -> Weathered Rock -> Bedrock
-            layers.append({
-                "layer_index": 1,
-                "from_m": 0.0,
-                "to_m": cwr_d,
-                "top_depth": 0.0,
-                "bottom_depth": cwr_d,
-                "thickness_m": cwr_d,
-                "thickness": cwr_d,
-                "material": "Fill / Residual Soil Overburden",
-                "soil_description": "Loose to medium dense soil overburden / fill",
-                "description": "Loose to medium dense soil overburden / fill",
-                "soil_classification": "Fill / CL",
-                "colour": "Yellowish Brown",
-                "density_consistency": "Loose to Medium Dense",
-                "moisture_condition": "Moist",
-                "geological_description": "Quaternary alluvial fill and residual overburden",
-                "rock_description": None,
-                "spt_n": 10,
-                "is_rock": False
-            })
-            layers.append({
-                "layer_index": 2,
-                "from_m": cwr_d,
-                "to_m": hr_d,
-                "top_depth": cwr_d,
-                "bottom_depth": hr_d,
-                "thickness_m": round(hr_d - cwr_d, 2),
-                "thickness": round(hr_d - cwr_d, 2),
-                "material": "Completely Weathered Rock (CWR)",
-                "soil_description": "Completely weathered disintegrated parent rock, friable",
-                "description": "Completely weathered disintegrated parent rock, friable",
-                "soil_classification": "Weathered Rock (Grade W4-W5)",
-                "colour": "Reddish Brown / Ochre",
-                "density_consistency": "Dense / SPT Refusal (>50)",
-                "moisture_condition": "Moist",
-                "geological_description": "In-situ highly weathered decomposition product of bedrock",
-                "rock_description": "Grade W4-W5 completely weathered rock core fragments",
-                "spt_n": 50,
-                "is_rock": True
-            })
-            layers.append({
-                "layer_index": 3,
-                "from_m": hr_d,
-                "to_m": term_d,
-                "top_depth": hr_d,
-                "bottom_depth": term_d,
-                "thickness_m": round(term_d - hr_d, 2),
-                "thickness": round(term_d - hr_d, 2),
-                "material": f"Hard {rock_name or 'Bedrock'}",
-                "soil_description": f"Massive sound {rock_name or 'Bedrock'} with high compressive strength",
-                "description": f"Massive sound {rock_name or 'Bedrock'} with high compressive strength",
-                "soil_classification": "Competent Bedrock (Grade W1-W2)",
-                "colour": "Dark Grey / Greenish Black",
-                "density_consistency": "Very Dense / Hard Rock",
-                "moisture_condition": "Dry to Damp",
-                "geological_description": f"Intact massive {rock_name or 'Bedrock'} basaltic/igneous suite",
-                "rock_description": f"Sound unweathered to slightly weathered {rock_name or 'Bedrock'}",
-                "spt_n": 100,
-                "is_rock": True
-            })
-        elif has_bedrock:
-            rock_top = hr_d if hr_d is not None else 3.0
-            layers.append({
-                "layer_index": 1,
-                "from_m": 0.0,
-                "to_m": rock_top,
-                "top_depth": 0.0,
-                "bottom_depth": rock_top,
-                "thickness_m": rock_top,
-                "thickness": rock_top,
-                "material": "Residual Soil / Overburden",
-                "soil_description": "Medium dense sandy clay / silt overburden",
-                "description": "Medium dense sandy clay / silt overburden",
-                "soil_classification": "SC / CL",
-                "colour": "Brownish Grey",
-                "density_consistency": "Medium Dense",
-                "moisture_condition": "Moist",
-                "geological_description": "Residual weathered overburden mantle",
-                "rock_description": None,
-                "spt_n": 16,
-                "is_rock": False
-            })
-            layers.append({
-                "layer_index": 2,
-                "from_m": rock_top,
-                "to_m": term_d,
-                "top_depth": rock_top,
-                "bottom_depth": term_d,
-                "thickness_m": round(term_d - rock_top, 2),
-                "thickness": round(term_d - rock_top, 2),
-                "material": f"Hard {rock_name or 'Bedrock'}",
-                "soil_description": f"Competent {rock_name or 'Bedrock'}",
-                "description": f"Competent {rock_name or 'Bedrock'}",
-                "soil_classification": "Rock",
-                "colour": "Greyish",
-                "density_consistency": "Sound Bedrock",
-                "moisture_condition": "Dry",
-                "geological_description": f"Competent {rock_name or 'Bedrock'} formation",
-                "rock_description": f"Competent {rock_name or 'Bedrock'}",
-                "spt_n": 100,
-                "is_rock": True
-            })
-        else:
-            # Pure granular or cohesive soil profile (No Bedrock)
-            t1 = min(2.0, term_d * 0.25)
-            layers.append({
-                "layer_index": 1,
-                "from_m": 0.0,
-                "to_m": t1,
-                "top_depth": 0.0,
-                "bottom_depth": t1,
-                "thickness_m": t1,
-                "thickness": t1,
-                "material": "Topsoil / Silty Sand",
-                "soil_description": "Loose sandy silt / topsoil",
-                "description": "Loose sandy silt / topsoil",
-                "soil_classification": "SM",
-                "colour": "Light Brown",
-                "density_consistency": "Loose",
-                "moisture_condition": "Moist",
-                "geological_description": "Alluvial floodplain surficial horizon",
-                "rock_description": None,
-                "spt_n": 8,
-                "is_rock": False
-            })
-            layers.append({
-                "layer_index": 2,
-                "from_m": t1,
-                "to_m": term_d,
-                "top_depth": t1,
-                "bottom_depth": term_d,
-                "thickness_m": round(term_d - t1, 2),
-                "thickness": round(term_d - t1, 2),
-                "material": "Dense Silty Sand",
-                "soil_description": "Medium dense to dense silty sand with gravel",
-                "description": "Medium dense to dense silty sand with gravel",
-                "soil_classification": "SM / SP",
-                "colour": "Yellowish Brown",
-                "density_consistency": "Medium Dense to Dense",
-                "moisture_condition": "Moist",
-                "geological_description": "Competent granular alluvial deposition",
-                "rock_description": None,
-                "spt_n": 28,
-                "is_rock": False
-            })
         return layers
 
     # ==============================================================
     # 3. INVESTIGATION SCOPE
     # ==============================================================
     def extract_investigation_info(self, bh_count: int) -> Dict[str, Any]:
-        depths_found = [float(d) for d in re.findall(r"(?:depth\s+of|terminated\s+at\s+(?:a\s+depth\s+of\s+)?|termination\s+depth\s*:\s*)(\d{1,2}(?:\.\d+)?)\s*m", self.text, re.IGNORECASE)]
-        max_depth = max(depths_found) if depths_found else 12.0
+        depth_pattern = r"(?:depth\s+of|terminated\s+at\s+(?:a\s+depth\s+of\s+|depths?\s+up\s+to\s+)?|termination\s+depth\s*(?:is|[:=])?\s*)(\d{1,2}(?:\.\d+)?)\s*m"
+        depths_found = [
+            float(depth)
+            for depth in re.findall(depth_pattern, self.text, re.IGNORECASE)
+        ]
+        max_depth = max(depths_found) if depths_found else None
+
+        count_match = re.search(
+            r"\b(one|two|three|four|five|six|seven|eight|nine|ten|\d+)\s+bore\s*holes?\b",
+            self.text,
+            re.IGNORECASE,
+        )
+        count_words = {
+            "one": 1, "two": 2, "three": 3, "four": 4, "five": 5,
+            "six": 6, "seven": 7, "eight": 8, "nine": 9, "ten": 10,
+        }
+        reported_borehole_count = (
+            count_words.get(count_match.group(1).lower(), int(count_match.group(1)) if count_match.group(1).isdigit() else None)
+            if count_match
+            else None
+        )
+        borehole_count = reported_borehole_count or (bh_count or None)
 
         std_candidates = ["IS 1892", "IS 2131", "IS 1498", "IS 4410", "IS 13365", "IS 456", "IS 2720", "IS 1888", "IS 6403", "IS 12070", "IS 2911", "IS 1904", "IS 1893"]
         found_stds = [std for std in std_candidates if re.search(rf"\b{re.escape(std)}\b", self.text, re.IGNORECASE)]
 
-        method_str = "Rotary drilling using diamond core bits and double tube core barrel" if ("rotary" in self.text.lower() or "diamond core" in self.text.lower()) else "Borehole drilling"
-        spt_str = "Standard Penetration Test conducted in accordance with IS 2131 (63.5 kg hammer falling 75 cm height)" if ("IS 2131" in self.text or "spt" in self.text.lower()) else None
+        method_match = re.search(r"(rotary(?:\s+core)?\s+drilling|shell\s+and\s+auger|wash\s+boring)", self.text, re.IGNORECASE)
+        method_str = method_match.group(1) if method_match else None
+        spt_str = "Standard Penetration Test" if re.search(r"\bSPT\b", self.text, re.IGNORECASE) else None
 
         return {
-            "number_of_boreholes": report_field(bh_count, page=1, text=f"{bh_count} boreholes completed", section="Exploration Scope"),
-            "boreholes": bh_count,
+            "number_of_boreholes": report_field(
+                borehole_count,
+                page=1,
+                text=count_match.group(0) if count_match else f"{bh_count} boreholes identified" if bh_count else "",
+                section="Exploration Scope",
+            ) if borehole_count else missing("Number of boreholes not specified in report."),
+            "boreholes": borehole_count,
             "maximum_depth_m": max_depth,
-            "investigation_depth_m": report_field(max_depth, unit="m", page=1, text=f"Terminated at {max_depth}m", section="Termination Scope"),
-            "drilling_method": report_field(method_str, page=1, text=method_str, section="Field Exploration Procedures"),
-            "spt_methodology": report_field(spt_str, page=1, text="SPT tests as per IS 2131", section="Field Exploration Procedures") if spt_str else missing("SPT methodology not specified."),
+            "investigation_depth_m": report_field(
+                max_depth,
+                unit="m",
+                page=1,
+                text=re.search(depth_pattern, self.text, re.IGNORECASE).group(0),
+                section="Termination Scope",
+            ) if max_depth is not None else missing("Exploration depth not specified in report."),
+            "drilling_method": report_field(method_str, page=1, text=method_match.group(0), section="Field Exploration Procedures") if method_str else missing("Drilling method not specified in report."),
+            "spt_methodology": report_field(spt_str, page=1, text=re.search(r"\bSPT\b", self.text, re.IGNORECASE).group(0), section="Field Exploration Procedures") if spt_str else missing("SPT methodology not specified."),
             "relevant_is_standards": report_field(found_stds, page=1, text=", ".join(found_stds), section="Applicable Codes") if found_stds else missing("Relevant standards not specified.")
         }
 
@@ -872,12 +865,6 @@ class GeotechnicalReportExtractor:
                     "source_text": f"{top}m to {bot}m: {clean_desc}",
                     "confidence": "HIGH"
                 })
-
-        if not strat_layers:
-            # Fallback scan for narrative depths
-            strat_layers = [
-                {"layer_title": "Layer I: Overburden Soil", "layer_name": "Overburden Soil", "top_depth": 0.0, "bottom_depth": 2.0, "thickness": 2.0, "material_type": "Soil", "material": "Overburden Soil", "source_page": 1, "confidence": "MEDIUM"}
-            ]
 
         return strat_layers
 
@@ -980,13 +967,13 @@ class GeotechnicalReportExtractor:
     # ==============================================================
     def extract_soil_classification(self) -> Dict[str, Any]:
         # Atterberg Limits
-        ll_m = re.search(r"(?:Liquid\s+Limit|LL)\s*[:=\-–]?\s*(\d{1,2}(?:\.\d+)?)\s*%", self.text, re.IGNORECASE)
-        pl_m = re.search(r"(?:Plastic\s+Limit|PL)\s*[:=\-–]?\s*(\d{1,2}(?:\.\d+)?)\s*%", self.text, re.IGNORECASE)
-        pi_m = re.search(r"(?:Plasticity\s+Index|PI)\s*[:=\-–]?\s*(\d{1,2}(?:\.\d+)?)\s*%", self.text, re.IGNORECASE)
+        ll_m = re.search(r"(?:Liquid\s+Limit|LL)\s*[:=]\s*(\d{1,2}(?:\.\d+)?)\s*%", self.text, re.IGNORECASE)
+        pl_m = re.search(r"(?:Plastic\s+Limit|PL)\s*[:=]\s*(\d{1,2}(?:\.\d+)?)\s*%", self.text, re.IGNORECASE)
+        pi_m = re.search(r"(?:Plasticity\s+Index|PI)\s*[:=]\s*(\d{1,2}(?:\.\d+)?)\s*%", self.text, re.IGNORECASE)
 
-        ll_val = float(ll_m.group(1)) if ll_m else (42.0 if "42%" in self.text else None)
-        pl_val = float(pl_m.group(1)) if pl_m else (22.0 if "22%" in self.text else None)
-        pi_val = float(pi_m.group(1)) if pi_m else ((ll_val - pl_val) if (ll_val and pl_val) else None)
+        ll_val = float(ll_m.group(1)) if ll_m else None
+        pl_val = float(pl_m.group(1)) if pl_m else None
+        pi_val = float(pi_m.group(1)) if pi_m else None
 
         # Grain-size distribution
         gravel_m = re.search(r"(?:Gravel)\s*[:=\-–]?\s*(\d{1,2}(?:\.\d+)?)\s*%", self.text, re.IGNORECASE)
@@ -995,21 +982,26 @@ class GeotechnicalReportExtractor:
         clay_m = re.search(r"(?:Clay)\s*[:=\-–]?\s*(\d{1,2}(?:\.\d+)?)\s*%", self.text, re.IGNORECASE)
         fines_m = re.search(r"(?:Fines|Silt\s*\+\s*Clay)\s*[:=\-–]?\s*(\d{1,2}(?:\.\d+)?)\s*%", self.text, re.IGNORECASE)
 
-        # Classification code (USCS / IS)
-        uscs_m = re.search(r"\b(CL|CH|ML|MH|SC|SM|SP|SW|GC|GM|GP|GW|CI|MI)\b", self.text)
-        uscs_code = uscs_m.group(1) if uscs_m else ("CL" if "clay" in self.text.lower() else ("SM" if "silty sand" in self.text.lower() else None))
+        # Classification code (USCS / IS), only when tied to an explicit label.
+        uscs_m = re.search(
+            r"(?:USCS\s+)?(?:soil\s+)?classification\s*[:=]\s*"
+            r"(CL|CH|ML|MH|SC|SM|SP|SW|GC|GM|GP|GW|CI|MI)\b",
+            self.text,
+            re.IGNORECASE,
+        )
+        uscs_code = uscs_m.group(1).upper() if uscs_m else None
 
         return {
-            "uscs_classification": report_field(uscs_code, page=1, text=f"Soil type: {uscs_code}", section="Soil Classification") if uscs_code else missing("USCS classification not specified."),
+            "uscs_classification": report_field(uscs_code, page=1, text=uscs_m.group(0), section="Soil Classification") if uscs_code else missing("USCS classification not specified."),
             "is_classification": report_field(f"IS 1498: {uscs_code}" if uscs_code else None, page=1, text="Soil classification per IS 1498", section="Soil Classification") if uscs_code else missing("IS classification not specified."),
             "gravel_pct": report_field(float(gravel_m.group(1)), unit="%", page=1, text=gravel_m.group(0)) if gravel_m else missing("Gravel % not specified."),
             "sand_pct": report_field(float(sand_m.group(1)), unit="%", page=1, text=sand_m.group(0)) if sand_m else missing("Sand % not specified."),
             "silt_pct": report_field(float(silt_m.group(1)), unit="%", page=1, text=silt_m.group(0)) if silt_m else missing("Silt % not specified."),
             "clay_pct": report_field(float(clay_m.group(1)), unit="%", page=1, text=clay_m.group(0)) if clay_m else missing("Clay % not specified."),
             "fines_pct": report_field(float(fines_m.group(1)), unit="%", page=1, text=fines_m.group(0)) if fines_m else missing("Fines % not specified."),
-            "liquid_limit": report_field(ll_val, unit="%", page=1, text=f"LL = {ll_val}%") if ll_val else missing("Liquid limit not specified."),
-            "plastic_limit": report_field(pl_val, unit="%", page=1, text=f"PL = {pl_val}%") if pl_val else missing("Plastic limit not specified."),
-            "plasticity_index": report_field(pi_val, unit="%", page=1, text=f"PI = {pi_val}%") if pi_val else missing("Plasticity index not specified."),
+            "liquid_limit": report_field(ll_val, unit="%", page=1, text=ll_m.group(0)) if ll_m else missing("Liquid limit not specified."),
+            "plastic_limit": report_field(pl_val, unit="%", page=1, text=pl_m.group(0)) if pl_m else missing("Plastic limit not specified."),
+            "plasticity_index": report_field(pi_val, unit="%", page=1, text=pi_m.group(0)) if pi_m else missing("Plasticity index not specified."),
             "gradation": {
                 "gravel_percentage": float(gravel_m.group(1)) if gravel_m else 0.0,
                 "sand_percentage": float(sand_m.group(1)) if sand_m else 0.0,
@@ -1192,7 +1184,6 @@ class GeotechnicalReportExtractor:
     # 11. GROUNDWATER
     # ==============================================================
     def extract_groundwater(self, bhs: Optional[List[Dict[str, Any]]] = None) -> Dict[str, Any]:
-        # Collect observed depths from boreholes if provided
         observed_depths: List[float] = []
         observations = []
         if bhs:
@@ -1209,9 +1200,18 @@ class GeotechnicalReportExtractor:
                 observations.append({
                     "borehole": b.get("borehole_id", "BH"),
                     "depth_m": d,
-                    "status": f"Groundwater encountered at {d} m" if d is not None else "Groundwater not encountered"
+                    "status": f"Groundwater encountered at {d} m"
+                    if d is not None
+                    else b.get("groundwater", {}).get("status", "Not specified in report")
                 })
 
+        gw_source_lines = [
+            line.strip()
+            for line in self.text.splitlines()
+            if re.search(r"ground\s*water|water\s*table|GWT", line, re.IGNORECASE)
+            and re.search(r"\d", line)
+        ]
+        gw_source_text = "\n".join(gw_source_lines)
         gw_depth_str = None
         if observed_depths:
             min_d = min(observed_depths)
@@ -1221,48 +1221,46 @@ class GeotechnicalReportExtractor:
             else:
                 gw_depth_str = f"{min_d}–{max_d} m BGL"
         else:
-            # Fallback regex searches in text
-            gw_m = re.search(r"ground\s*water\s*(?:was\s*observed\s*(?:at\s*depths?\s*of)?|table\s*(?:at\s*depth\s*of)?|levels?\s*[:\-–]?\s*)\s*(\d{1,2}(?:\.\d+)?)\s*(?:m)?\s*(?:to|-|–)?\s*(\d{1,2}(?:\.\d+)?)?\s*m", self.text, re.IGNORECASE)
+            gw_m = re.search(
+                r"(?:ground\s*water|water\s*table|GWT)\s*"
+                r"(?:(?:was\s*)?(?:observed|encountered|recorded)\s*"
+                r"(?:at\s*(?:depths?\s*(?:of\s*)?)?)?|"
+                r"(?:level|levels|table)\s*(?:is\s*)?(?:at\s*(?:depth\s*(?:of\s*)?)?)?|"
+                r"is\s+at|[:=])\s*"
+                r"(\d{1,2}(?:\.\d+)?)\s*(?:m)?\s*(?:to|-|–)?\s*"
+                r"(\d{1,2}(?:\.\d+)?)?\s*m",
+                self.text,
+                re.IGNORECASE,
+            )
             if gw_m:
                 if gw_m.group(2):
                     gw_depth_str = f"{gw_m.group(1)}–{gw_m.group(2)} m BGL"
                 else:
                     gw_depth_str = f"{gw_m.group(1)} m BGL"
-            elif "1.5m to 2.5m" in self.text:
-                gw_depth_str = "1.5–2.5 m BGL"
 
-        seasonal = "Expected" if "seasonal and annual fluctuations" in self.text.lower() or "seasonal" in self.text.lower() else None
+        seasonal_match = re.search(r"[^\r\n.!?]*\bseasonal\b[^\r\n.!?]*", self.text, re.IGNORECASE)
+        seasonal = seasonal_match.group(0).strip() if seasonal_match else None
 
-        # Check for groundwater RL
         gw_rl_m = re.search(r"ground\s*water\s*(?:RL|level|elevation)\s*[:=\-–]?\s*([+\-]?[0-9\.]+)\s*m", self.text, re.IGNORECASE)
         gw_rl_str = f"{gw_rl_m.group(1)} m RL" if gw_rl_m else None
-        if not gw_rl_str and bhs and observed_depths:
-            first_rl = bhs[0].get("ground_rl_m")
-            if first_rl and first_rl > 0:
-                calc_gw_rl = round(first_rl - (sum(observed_depths) / len(observed_depths)), 2)
-                gw_rl_str = f"{calc_gw_rl} m RL (derived from Ground RL {first_rl}m - mean GW {sum(observed_depths)/len(observed_depths):.1f}m)"
-
-        # Check for dewatering requirement
-        dewatering_needed = "Peripheral sump pits and submersible pumping required during excavation below water table" if (gw_depth_str or "dewatering" in self.text.lower()) else "Normal sump drainage adequate"
-
-        # Check for seepage observations
-        seepage_str = "Seepage observed in granular horizons below water table" if gw_depth_str else None
+        dewatering_match = re.search(r"[^\r\n.!?]*\bdewater(?:ing|ed)?\b[^\r\n.!?]*", self.text, re.IGNORECASE)
+        seepage_match = re.search(r"[^\r\n.!?]*\bseepage\b[^\r\n.!?]*", self.text, re.IGNORECASE)
 
         return {
-            "groundwater_depth": report_field(gw_depth_str, page=1, text="Groundwater level observed in exploration", section="Groundwater Levels") if gw_depth_str else missing("Groundwater depth not specified in report."),
-            "observed_depth": report_field(gw_depth_str, page=1, text="Groundwater level observed in exploration", section="Groundwater Levels") if gw_depth_str else missing("Groundwater depth not specified in report."),
+            "groundwater_depth": report_field(gw_depth_str, page=1, text=gw_source_text, section="Groundwater Levels") if gw_depth_str else missing("Groundwater depth not specified in report."),
+            "observed_depth": report_field(gw_depth_str, page=1, text=gw_source_text, section="Groundwater Levels") if gw_depth_str else missing("Groundwater depth not specified in report."),
             "depth_range": gw_depth_str or NOT_IN_REPORT,
-            "groundwater_rl": report_field(gw_rl_str, page=1, text="Groundwater RL derived/observed", section="Groundwater Levels") if gw_rl_str else missing("Groundwater RL not specified in report."),
+            "groundwater_rl": report_field(gw_rl_str, page=1, text=gw_rl_m.group(0), section="Groundwater Levels") if gw_rl_str else missing("Groundwater RL not specified in report."),
             "date_time_measured": missing("Date/time of water table measurement not specified in report text."),
-            "seasonal_groundwater_information": report_field(seasonal, page=1, text="Seasonal fluctuations in ground water levels expected.", section="Groundwater Levels") if seasonal else missing("Seasonal groundwater information not specified."),
-            "seasonal_variation": report_field(seasonal, page=1, text="Seasonal fluctuations in ground water levels expected.", section="Groundwater Levels") if seasonal else missing("Seasonal variation not specified."),
-            "perched_water": missing("Perched water table not encountered within borehole depth."),
-            "seepage_observations": report_field(seepage_str, page=1, text="Seepage observations", section="Groundwater Levels") if seepage_str else missing("No seepage observations recorded."),
-            "dewatering_requirement": report_field(dewatering_needed, page=1, text="Dewatering during excavation", section="Construction Recommendations"),
-            "groundwater_chemical_test_results": report_field("Class I exposure per IS 456-2000 Table 4 (pH 7.79, Sulphates 33.87 mg/l, Chlorides 106.97 mg/l)" if ("Class 1" in self.text or "Class I" in self.text) else None, page=1, text="Groundwater chemical test results", section="Foundation Protection") if ("Class 1" in self.text or "Class I" in self.text) else missing("Groundwater chemical test results not specified in report."),
-            "water_chemistry": report_field("Class I for sulphates and chlorides (IS 456-2000)" if "Class I" in self.text else None, page=1, text="falls under Class I for sulphates and chlorides", section="Foundation Protection") if "Class I" in self.text else missing("Water chemistry not specified in report."),
+            "seasonal_groundwater_information": report_field(seasonal, page=1, text=seasonal_match.group(0), section="Groundwater Levels") if seasonal_match else missing("Seasonal groundwater information not specified."),
+            "seasonal_variation": report_field(seasonal, page=1, text=seasonal_match.group(0), section="Groundwater Levels") if seasonal_match else missing("Seasonal variation not specified."),
+            "perched_water": missing("Perched groundwater information not specified in the report."),
+            "seepage_observations": report_field(seepage_match.group(0).strip(), page=1, text=seepage_match.group(0).strip(), section="Groundwater Levels") if seepage_match else missing("Seepage observations not specified in report."),
+            "dewatering_requirement": report_field(dewatering_match.group(0).strip(), page=1, text=dewatering_match.group(0).strip(), section="Construction Recommendations") if dewatering_match else missing("Dewatering requirements not specified in report."),
+            "groundwater_chemical_test_results": missing("Groundwater chemical test results not specified in report."),
+            "water_chemistry": missing("Water chemistry not specified in report."),
             "borehole_observations": observations,
-            "groundwater_status": report_field("Shallow groundwater (1.5–2.5 m BGL)" if (gw_depth_str and "1.5" in gw_depth_str) else ("Groundwater Encountered" if gw_depth_str else NOT_IN_REPORT), page=1, text="Groundwater status", section="Groundwater Interpretation") if gw_depth_str else missing("Groundwater not specified in report.")
+            "groundwater_status": report_field(gw_depth_str, page=1, text=gw_source_text, section="Groundwater Interpretation") if gw_depth_str else missing("Groundwater not specified in report.")
         }
 
     # ==============================================================
@@ -1317,18 +1315,24 @@ class GeotechnicalReportExtractor:
         discontinuities = "Tight planar joints with iron oxide staining"
         point_load = "2.5 to 5.0 MPa (estimated from UCS)" if ucs_str else None
 
+        rock_name_match = re.search(
+            rf"\b(?:Hard\s+)?{re.escape(rock_name)}(?:\s+Bedrock)?\b",
+            self.text,
+            re.IGNORECASE,
+        ) if rock_name else None
+
         return {
-            "rock_type": report_field(rock_display_name, page=1, text=f"Rock formation: {rock_display_name}", section="Rock Conditions"),
+            "rock_type": report_field(rock_display_name, page=1, text=rock_name_match.group(0), section="Rock Conditions") if rock_name_match else missing("Rock type not specified in report."),
             "depth_to_rock": report_field(depth_to_rock, page=1, text="Depth to rockhead", section="Rock Depth"),
             "depth_range": report_field("3.0–9.0 m" if "3.0m to 9.0m" in self.text else "12.0–30.0 m", page=1, text="Depth 3.0m to 9.0m", section="Rock Depth"),
             "rockhead_elevation": report_field(rockhead_rl, page=1, text="Rockhead elevation", section="Rock Depth") if rockhead_rl else missing("Rockhead elevation not explicitly specified."),
             "rock_quality": report_field(rock_quality, page=1, text=f"Rock Quality: {rock_quality}", section="Rock Quality"),
             "weathering_grade": report_field(weathering, page=1, text=f"Weathering grade: {weathering}", section="Rock Conditions"),
             "fracturing": report_field(fracturing, page=1, text="Fracturing assessment", section="Rock Conditions"),
-            "rqd": report_field(rqd_str, page=1, text=f"RQD: {rqd_str}", section="Rock Quality") if rqd_str else missing("RQD not specified in report."),
-            "core_recovery": report_field(cr_str, page=1, text=f"Core recovery: {cr_str}", section="Rock Quality") if cr_str else missing("Core recovery not specified in report."),
-            "compressive_strength": report_field(ucs_str, page=1, text=f"UCS: {ucs_str}", section="Rock Strength") if ucs_str else missing("UCS compressive strength not specified in report."),
-            "ucs": report_field(ucs_str, page=1, text=f"UCS: {ucs_str}", section="Rock Strength") if ucs_str else missing("UCS compressive strength not specified in report."),
+            "rqd": report_field(rqd_str, page=1, text=rqd_m.group(0), section="Rock Quality") if rqd_str and rqd_m else missing("RQD not specified in report."),
+            "core_recovery": report_field(cr_str, page=1, text=cr_m.group(0), section="Rock Quality") if cr_str and cr_m else missing("Core recovery not specified in report."),
+            "compressive_strength": report_field(ucs_str, page=1, text=ucs_m.group(0), section="Rock Strength") if ucs_str and ucs_m else missing("UCS compressive strength not specified in report."),
+            "ucs": report_field(ucs_str, page=1, text=ucs_m.group(0), section="Rock Strength") if ucs_str and ucs_m else missing("UCS compressive strength not specified in report."),
             "point_load_strength": report_field(point_load, page=1, text="Point load index strength") if point_load else missing("Point-load strength not tested."),
             "joint_spacing": report_field(joint_spacing, page=1, text="Rock joint spacing"),
             "joint_orientation": report_field(joint_orientation, page=1, text="Joint orientation"),
@@ -1490,32 +1494,73 @@ class GeotechnicalReportExtractor:
     # 16. LIQUEFACTION ASSESSMENT
     # ==============================================================
     def extract_liquefaction_assessment(self, spt_data: List[Dict[str, Any]], gw: Dict[str, Any]) -> Dict[str, Any]:
-        has_loose_saturated_sand = False
-        gw_depth = 2.0
+        gw_depth = None
         if is_found(gw.get("observed_depth")):
             gw_txt = str(val(gw.get("observed_depth")))
             m = re.search(r"(\d+(?:\.\d+)?)", gw_txt)
             if m:
                 gw_depth = float(m.group(1))
 
-        for s in spt_data:
-            if s.get("depth_m", 0) >= gw_depth and s.get("spt_n", 50) < 15 and "sand" in s.get("soil_layer", "").lower():
-                has_loose_saturated_sand = True
-                break
-
-        susceptibility = "Moderate Risk" if has_loose_saturated_sand else "Low / Non-Liquefiable"
+        susceptibility_match = re.search(
+            r"(?:liquefaction(?:\s+(?:potential|susceptibility))?"
+            r"[^\r\n.]{0,80}?\b(very\s+low|low|moderate|medium|high|very\s+high|"
+            r"negligible|unlikely|not\s+susceptible|susceptible|unlikely)\b)"
+            r"|(?:\b(very\s+low|low|moderate|medium|high|very\s+high|"
+            r"negligible|unlikely|not\s+susceptible|susceptible)\b"
+            r"[^\r\n.]{0,80}\bliquefaction\b)",
+            self.text,
+            re.IGNORECASE,
+        )
+        susceptibility = next(
+            (group for group in susceptibility_match.groups() if group),
+            None,
+        ) if susceptibility_match else None
+        spt_summary = next(
+            (record for record in spt_data if record.get("source_text")),
+            None,
+        )
+        liquefiable_layers_match = re.search(
+            r"(?:liquefiable\s+layers?|liquefaction\s+prone\s+layers?)[^\r\n.]{0,100}",
+            self.text,
+            re.IGNORECASE,
+        )
+        mitigation_match = re.search(
+            r"(?:mitigation|ground\s+improvement|liquefaction\s+measures?)[^\r\n.]{0,160}",
+            self.text,
+            re.IGNORECASE,
+        )
         return {
-            "liquefaction_susceptibility": report_field(susceptibility, page=1, text=f"Liquefaction: {susceptibility}", section="Seismic Hazards"),
+            "liquefaction_susceptibility": report_field(
+                susceptibility,
+                page=1,
+                text=susceptibility_match.group(0),
+                section="Seismic Hazards",
+            ) if susceptibility_match else missing("Liquefaction susceptibility not stated in report."),
             "groundwater_level": gw_depth,
             "groundwater_level_m": gw_depth,
-            "spt_n_value": report_field("> 30 in dense stratum; > 50 refusal at rockhead", page=1, text="SPT N-values"),
-            "corrected_n_value": report_field("(N1)60 > 30 throughout founding horizons", page=1, text="Corrected N-values"),
-            "fines_content": report_field("25–30% non-plastic fines", page=1, text="Fines content"),
-            "csr": report_field("0.18 (calculated for Zone III design PGA 0.16g)", page=1, text="Cyclic Stress Ratio CSR"),
-            "crr": report_field("0.35 (calculated from SPT N1_60 per Idriss & Boulanger)", page=1, text="Cyclic Resistance Ratio CRR"),
-            "factor_of_safety": report_field("> 1.50 (Adequate)" if not has_loose_saturated_sand else "1.10 (Marginal)", page=1, text="FOS against liquefaction"),
-            "liquefiable_layers": report_field("No liquefiable layers identified in dense stratum / bedrock" if not has_loose_saturated_sand else "Saturated loose silty sand between 1.5m and 3.0m BGL", page=1, text="Liquefiable layers"),
-            "mitigation_recommendation": "Vibro-stone columns or pile foundation if liquefiable loose sands present below water table" if has_loose_saturated_sand else "No specific ground improvement required for liquefaction mitigation."
+            "spt_n_value": report_field(
+                spt_summary.get("spt_n"),
+                page=1,
+                text=spt_summary.get("source_text"),
+                section="SPT Results",
+            ) if spt_summary else missing("SPT values not specified in report."),
+            "corrected_n_value": missing("Corrected SPT values not specified in report."),
+            "fines_content": missing("Fines content for liquefaction analysis not specified in report."),
+            "csr": missing("Cyclic stress ratio not specified in report."),
+            "crr": missing("Cyclic resistance ratio not specified in report."),
+            "factor_of_safety": missing("Factor of safety against liquefaction not specified in report."),
+            "liquefiable_layers": report_field(
+                liquefiable_layers_match.group(0),
+                page=1,
+                text=liquefiable_layers_match.group(0),
+                section="Seismic Hazards",
+            ) if liquefiable_layers_match else missing("Liquefiable layers not identified in report."),
+            "mitigation_recommendation": report_field(
+                mitigation_match.group(0),
+                page=1,
+                text=mitigation_match.group(0),
+                section="Mitigation",
+            ) if mitigation_match else missing("Liquefaction mitigation recommendations not specified in report.")
         }
 
     # ==============================================================
@@ -1566,21 +1611,42 @@ class GeotechnicalReportExtractor:
     # 18. CONSTRUCTION RECOMMENDATIONS
     # ==============================================================
     def extract_construction_recommendations(self) -> Dict[str, Any]:
+        lines = [line.strip() for line in self.text.splitlines() if line.strip()]
+
+        def source_line(pattern: str) -> Optional[str]:
+            return next(
+                (line for line in lines if re.search(pattern, line, re.IGNORECASE)),
+                None,
+            )
+
+        recommendation_patterns = {
+            "backfilling": r"backfill|backfilling",
+            "compaction": r"compaction|compact",
+            "compaction_percentage": r"compaction|compact",
+            "suitable_fill_material": r"fill material",
+            "subgrade_preparation": r"subgrade preparation|proof.?roll",
+            "pavement_subgrade": r"pavement subgrade|hardstanding",
+            "excavation": r"excavat",
+            "dewatering": r"dewater|sump pump",
+            "foundation_construction": r"foundation construction|mud.?mat|pcc",
+            "concrete_exposure": r"concrete exposure|exposure class",
+            "waterproofing": r"waterproof",
+            "drainage": r"drainage",
+            "soil_replacement": r"soil replacement|soft pockets",
+            "ground_improvement": r"ground improvement|ground treatment",
+        }
+        sources = {
+            key: source_line(pattern)
+            for key, pattern in recommendation_patterns.items()
+        }
         return {
-            "backfilling": report_field("Select granular material / non-expansive soil compacted in layers not exceeding 200 mm", page=1, text="Backfilling recommendation", section="Construction Recommendations"),
-            "compaction": report_field("Compaction to 95% MDD per IS 2720 Part 8", page=1, text="Compaction requirement"),
-            "compaction_percentage": report_field("95% MDD (Modified Proctor per IS 2720 Part 8)", page=1, text="Compaction: 95% MDD", section="Construction Recommendations"),
-            "suitable_fill_material": report_field("Well-graded granular material (GW / SW / GP) free of organic debris", page=1, text="Fill material suitability"),
-            "subgrade_preparation": report_field("Proof roll subgrade with 8–10 tonne roller before pouring blinding PCC", page=1, text="Subgrade preparation", section="Construction Recommendations"),
-            "pavement_subgrade": report_field("Compacted to 98% MDD with minimum soaked CBR of 8% for hardstanding", page=1, text="Pavement subgrade criteria"),
-            "excavation": report_field("Bulk excavation with hydraulic excavators, hard basalt bedrock breaking with hydraulic hammer attachments", page=1, text="Excavation method"),
-            "dewatering": report_field("Positive dewatering via peripheral sump pits and continuous pumping required during excavation below water table", page=1, text="Dewatering recommendation", section="Construction Recommendations"),
-            "foundation_construction": report_field("Provide minimum 100 mm thick M15 PCC mud-mat immediately upon reaching foundation level to prevent stratum disturbance", page=1, text="Foundation mud mat", section="Construction Recommendations"),
-            "concrete_exposure": report_field("Class 1 / Mild to Moderate exposure per IS 456 Table 3 & 4", page=1, text="Concrete exposure"),
-            "waterproofing": report_field("External tanking waterproofing membrane compliant with IS 16471 for substructure basement walls and raft slab", page=1, text="Waterproofing recommendation", section="Construction Recommendations"),
-            "drainage": report_field("Peripheral subsoil drainage trench with perforated pipe wrapped in non-woven geotextile filter fabric", page=1, text="Subsurface drainage"),
-            "soil_replacement": report_field("Localized soft pockets or loose fill to be excavated and replaced with M10 lean concrete", page=1, text="Soil replacement"),
-            "ground_improvement": report_field("Not required if founding on weathered rock/dense strata; remove localized soft pockets and backfill with lean concrete", page=1, text="Ground improvement", section="Construction Recommendations")
+            key: report_field(
+                source,
+                page=1,
+                text=source,
+                section="Construction Recommendations",
+            ) if source else missing(f"{key.replace('_', ' ').capitalize()} not specified in report.")
+            for key, source in sources.items()
         }
 
     # ==============================================================

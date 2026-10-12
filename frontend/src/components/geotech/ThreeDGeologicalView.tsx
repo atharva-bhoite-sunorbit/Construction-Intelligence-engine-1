@@ -64,7 +64,7 @@ export const ThreeDGeologicalView: React.FC<ThreeDGeologicalViewProps> = ({
               onChange={(e) => setShowWaterPlane(e.target.checked)}
               className="rounded text-brand-500 focus:ring-0"
             />
-            <Droplets className="w-3.5 h-3.5 text-cyan-400" />
+            <Droplets className="w-3.5 h-3.5 text-teal-400" />
             <span>Water Table</span>
           </label>
 
@@ -87,7 +87,7 @@ export const ThreeDGeologicalView: React.FC<ThreeDGeologicalViewProps> = ({
         <div className="absolute left-6 top-6 bottom-6 w-20 pointer-events-none flex flex-col justify-between text-[10px] font-mono text-slate-400 border-r border-slate-800/80 pr-2">
           <div className="text-emerald-400 font-bold">0.0m Surface</div>
           <div className="text-amber-400">1.5m–4.5m CWR</div>
-          <div className="text-cyan-400">3.0m–9.0m Basalt</div>
+          <div className="text-teal-400">3.0m–9.0m Basalt</div>
           <div className="text-slate-500">{maxTerm}m Bedrock</div>
         </div>
 
@@ -114,13 +114,13 @@ export const ThreeDGeologicalView: React.FC<ThreeDGeologicalViewProps> = ({
           {/* Semi-transparent Groundwater Plane */}
           {showWaterPlane && (
             <div
-              className="absolute inset-0 border border-cyan-400/50 bg-cyan-500/15 rounded-xl pointer-events-none"
+              className="absolute inset-0 border border-teal-400/50 bg-teal-500/15 rounded-xl pointer-events-none"
               style={{
                 transform: 'translateZ(-50px)',
                 boxShadow: '0 0 20px rgba(6, 182, 212, 0.2)',
               }}
             >
-              <div className="absolute bottom-2 right-2 text-[10px] font-mono text-cyan-300 font-bold flex items-center gap-1">
+              <div className="absolute bottom-2 right-2 text-[10px] font-mono text-teal-300 font-bold flex items-center gap-1">
                 <Droplets className="w-3 h-3" />
                 <span>STATIC WATER TABLE ({groundwaterDepth})</span>
               </div>
@@ -129,10 +129,10 @@ export const ThreeDGeologicalView: React.FC<ThreeDGeologicalViewProps> = ({
 
           {/* Interpolated Bedrock Floor */}
           <div
-            className="absolute inset-0 border border-cyan-700/60 bg-cyan-950/30 rounded-xl"
+            className="absolute inset-0 border border-teal-700/60 bg-teal-950/30 rounded-xl"
             style={{ transform: 'translateZ(-140px)' }}
           >
-            <div className="absolute bottom-2 left-2 text-[10px] font-mono text-cyan-400 font-bold">
+            <div className="absolute bottom-2 left-2 text-[10px] font-mono text-teal-400 font-bold">
               HARD BASALT BEDROCK FORMATION
             </div>
           </div>
@@ -188,7 +188,7 @@ export const ThreeDGeologicalView: React.FC<ThreeDGeologicalViewProps> = ({
                   />
                   {/* Layer 3: Hard Bedrock */}
                   <div
-                    className="w-full bg-cyan-600 flex-1"
+                    className="w-full bg-teal-600 flex-1"
                     title={`Hard Basalt Bedrock (${bh.hard_rock_depth}m to ${bh.termination_depth}m)`}
                   />
                 </div>
@@ -208,11 +208,11 @@ export const ThreeDGeologicalView: React.FC<ThreeDGeologicalViewProps> = ({
             <span>Completely Weathered Rock (CWR)</span>
           </div>
           <div className="flex items-center gap-2">
-            <span className="w-2.5 h-2.5 rounded-full bg-cyan-600" />
+            <span className="w-2.5 h-2.5 rounded-full bg-teal-600" />
             <span>Massive Hard Basalt Bedrock</span>
           </div>
           <div className="flex items-center gap-2">
-            <span className="w-2.5 h-2.5 rounded-full bg-cyan-400" />
+            <span className="w-2.5 h-2.5 rounded-full bg-teal-400" />
             <span>Static Groundwater Surface</span>
           </div>
         </div>

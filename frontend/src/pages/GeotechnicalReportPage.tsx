@@ -386,7 +386,7 @@ export const GeotechnicalReportPage: React.FC<GeotechnicalReportPageProps> = ({
           category: s.material_type || (isRock ? 'Hard Rock' : 'Dense Soil'),
           is_rock: isRock,
           description: s.description || `${s.layer_name} stratum logged in subsurface investigation.`,
-          color: isRock ? '#0891b2' : '#ea580c',
+          color: isRock ? '#0f766e' : '#ea580c',
           top_m: top,
           bottom_m: bot,
           thickness_m: thk,
@@ -543,10 +543,10 @@ export const GeotechnicalReportPage: React.FC<GeotechnicalReportPageProps> = ({
           <button
             onClick={handleExportStandardJSON}
             disabled={!currentIntelDoc}
-            className="p-2 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 text-xs font-semibold disabled:opacity-50 transition-colors"
+            className="p-2 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 text-xs font-semibold disabled:opacity-50 transition-colors"
             title="Export Standard 5-Layers JSON"
           >
-            <Download className="w-4 h-4 text-indigo-600" />
+            <Download className="w-4 h-4 text-slate-600" />
           </button>
 
           <button
@@ -607,7 +607,7 @@ export const GeotechnicalReportPage: React.FC<GeotechnicalReportPageProps> = ({
           <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block font-mono">
             Groundwater
           </span>
-          <div className="text-lg font-bold text-blue-700 mt-1 font-mono">
+          <div className="text-lg font-bold text-amber-700 mt-1 font-mono">
             {gwData?.observed_depth?.display || 'Not specified'}
           </div>
           <span className="text-[10px] text-slate-500 block">Below Ground Level</span>
@@ -626,13 +626,13 @@ export const GeotechnicalReportPage: React.FC<GeotechnicalReportPageProps> = ({
 
         {/* Hard Rock Depth Range */}
         <div className="bg-white border border-slate-200 rounded-xl p-3 shadow-2xs hover:shadow-xs transition-shadow">
-          <span className="text-[10px] font-bold text-cyan-700 uppercase tracking-wider block font-mono">
+          <span className="text-[10px] font-bold text-teal-700 uppercase tracking-wider block font-mono">
             Hard Rock
           </span>
-          <div className="text-lg font-bold text-cyan-900 mt-1 font-mono">
+          <div className="text-lg font-bold text-teal-900 mt-1 font-mono">
             {hrRange}
           </div>
-          <span className="text-[10px] text-cyan-700/80 block truncate">
+          <span className="text-[10px] text-teal-700/80 block truncate">
             {rockData?.rock_type?.display || 'Bedrock formation'}
           </span>
         </div>
@@ -1198,7 +1198,7 @@ export const GeotechnicalReportPage: React.FC<GeotechnicalReportPageProps> = ({
                     <div className="flex items-center gap-3">
                       <div
                         className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold text-sm text-white ${
-                          layer.material_type === 'Rock' ? 'bg-cyan-600' : 'bg-amber-600'
+                          layer.material_type === 'Rock' ? 'bg-teal-600' : 'bg-amber-600'
                         }`}
                       >
                         {idx + 1}
@@ -1620,7 +1620,7 @@ export const GeotechnicalReportPage: React.FC<GeotechnicalReportPageProps> = ({
                         <SourceBadge sourceType="REPORT" page={calc.source_page} />
                       </div>
 
-                      <div className="p-3 bg-blue-50/50 rounded-xl border border-blue-200 font-mono text-xs text-blue-900">
+                      <div className="p-3 bg-amber-50/50 rounded-xl border border-amber-200 font-mono text-xs text-amber-900">
                         Formula: {calc.formula}
                       </div>
 
@@ -1671,14 +1671,14 @@ export const GeotechnicalReportPage: React.FC<GeotechnicalReportPageProps> = ({
               <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
                 <div>
                   <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2">
-                    <Rotate3d className="w-4 h-4 text-cyan-600" />
+                    <Rotate3d className="w-4 h-4 text-teal-600" />
                     <span>3D Subsurface Geological Model & Isometric Cutaway Cube</span>
                   </h3>
                   <p className="text-xs text-slate-500">
                     Dual 3D modes: Interactive isometric strata cube with exploded layer inspection & spatial borehole column interpolations.
                   </p>
                 </div>
-                <div className="px-3 py-1 rounded-full bg-cyan-100 text-cyan-900 border border-cyan-300 font-mono text-[10px] font-bold">
+                <div className="px-3 py-1 rounded-full bg-teal-100 text-teal-900 border border-teal-300 font-mono text-[10px] font-bold">
                   INTERPOLATED GEOLOGICAL MODEL
                 </div>
               </div>

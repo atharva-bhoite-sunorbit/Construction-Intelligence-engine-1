@@ -34,6 +34,7 @@ import {
 } from 'lucide-react';
 import { Activity, Project, User, GovernanceSummary } from '../types';
 import { apiClient } from '../api/client';
+import { isStructureOrHandoverActivity } from '../utils/activityPresentation';
 
 export type GovernanceRole = 'Site Engineer' | 'Site Manager' | 'Admin' | 'Project Manager' | 'Top Management';
 
@@ -146,11 +147,17 @@ export const PMActivitySectionValidation: React.FC<PMActivitySectionValidationPr
     return 'Sophia Sterling (Top Management)';
   }, [activeRole]);
 
-  // Role activities partitioning:
-  // All users have different activities!
+  // CRITICAL: Strict project isolation - only activities belonging to this project
+  const projectActivities = useMemo(() => {
+    return (activities || []).filter(
+      (activity) => activity.project_id === project.id && isStructureOrHandoverActivity(activity)
+    );
+  }, [activities, project.id]);
+
+  // Role activities partitioning strictly for current project:
   const roleActivities = useMemo(() => {
     if (activeRole === 'Site Engineer') {
-      return activities.filter(
+      return projectActivities.filter(
         (a) =>
           a.assigned_role === 'Site Engineer' ||
           (a.code || '').toUpperCase().startsWith('GX-') ||
@@ -159,12 +166,12 @@ export const PMActivitySectionValidation: React.FC<PMActivitySectionValidationPr
       );
     }
     if (activeRole === 'Site Manager') {
-      return activities.filter((a) => (a.assigned_role || 'Site Manager') === 'Site Manager');
+      return projectActivities.filter((a) => (a.assigned_role || 'Site Manager') === 'Site Manager');
     }
     if (activeRole === 'Admin') {
       if (adminSubTab === 'geotech_queue') {
         // Awaiting Admin Verification queue (Site Engineer validated activities)
-        return activities.filter(
+        return projectActivities.filter(
           (a) =>
             !a.final_recorded &&
             (a.validation_status === 'AWAITING_ADMIN_VERIFICATION' ||
@@ -172,12 +179,12 @@ export const PMActivitySectionValidation: React.FC<PMActivitySectionValidationPr
                 (a.assigned_role === 'Site Engineer' || (a.code || '').toUpperCase().startsWith('GX-'))))
         );
       }
-      return activities.filter((a) => a.assigned_role === 'Admin');
+      return projectActivities.filter((a) => a.assigned_role === 'Admin');
     }
     if (activeRole === 'Project Manager') {
       if (pmSubTab === 'queue') {
         // Awaiting PM Verification queue (activities approved by Site Manager or Admin statutory)
-        return activities.filter(
+        return projectActivities.filter(
           (a) =>
             !a.final_recorded &&
             (a.validation_status === 'AWAITING_PM_VERIFICATION' ||
@@ -186,26 +193,27 @@ export const PMActivitySectionValidation: React.FC<PMActivitySectionValidationPr
       }
       if (pmSubTab === 'direct') {
         // PM direct structural activities
-        return activities.filter((a) => a.assigned_role === 'Project Manager');
+        return projectActivities.filter((a) => a.assigned_role === 'Project Manager');
       }
-      // Master registry
-      return activities;
+      // Master registry for current project
+      return projectActivities;
     }
     // Top Management
     if (topMgmtSubTab === 'recorded') {
-      return activities.filter((a) => a.final_recorded === true);
+      return projectActivities.filter((a) => a.final_recorded === true);
     }
-    return activities;
-  }, [activities, activeRole, adminSubTab, pmSubTab, topMgmtSubTab]);
+    return projectActivities;
+  }, [projectActivities, activeRole, adminSubTab, pmSubTab, topMgmtSubTab]);
 
   // Filtered displayed activities based on search and status
   const displayedActivities = useMemo(() => {
     let pool = roleActivities;
     if (activeRole !== 'Top Management' && activeRole !== 'Project Manager' && showOtherRolesInReadOnly) {
-      pool = activities;
+      pool = projectActivities;
     }
 
     return pool.filter((act) => {
+      if (act.project_id !== project.id) return false;
       const matchesSearch =
         act.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         (act.code && act.code.toLowerCase().includes(searchQuery.toLowerCase())) ||
@@ -218,7 +226,7 @@ export const PMActivitySectionValidation: React.FC<PMActivitySectionValidationPr
       const matchesStatus = statusFilter === 'all' || currentStatus === statusFilter;
       return matchesSearch && matchesStatus;
     });
-  }, [roleActivities, activities, activeRole, showOtherRolesInReadOnly, searchQuery, statusFilter]);
+  }, [roleActivities, projectActivities, project.id, activeRole, showOtherRolesInReadOnly, searchQuery, statusFilter]);
 
   // Overall statistics for active role
   const roleStats = useMemo(() => {
@@ -586,24 +594,28 @@ export const PMActivitySectionValidation: React.FC<PMActivitySectionValidationPr
       <div className="bg-gradient-to-br from-slate-900 via-slate-850 to-slate-900 rounded-2xl border border-slate-700/60 p-6 text-white shadow-xl shadow-slate-950/20">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 pb-5 border-b border-slate-700/60">
           <div>
-            <div className="flex items-center gap-2 mb-1.5">
+            <div className="flex flex-wrap items-center gap-2 mb-1.5">
               <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-brand-500/20 text-brand-300 border border-brand-500/40 flex items-center gap-1 uppercase tracking-wider">
                 <ShieldCheck className="w-3 h-3 text-brand-400" />
                 Multi-Tier Governance Architecture
               </span>
-              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-indigo-500/20 text-indigo-300 border border-indigo-500/40 uppercase tracking-wider">
-                Two-Tier Verification Gate
+              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 uppercase tracking-wider flex items-center gap-1">
+                <Building2 className="w-3 h-3 text-emerald-400" />
+                Project: {project.name} ({project.code})
+              </span>
+              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-slate-500/20 text-slate-300 border border-slate-500/40 uppercase tracking-wider">
+                Structure & Handover Scope • {projectActivities.length} Activities
               </span>
             </div>
             <h2 className="text-xl font-black text-white tracking-tight flex items-center gap-2">
-              <span>Activity Validation & Verification Hub</span>
+              <span>{project.name} — Structure & Handover Governance</span>
             </h2>
             <p className="text-xs text-slate-300 mt-1 max-w-3xl leading-relaxed">
-              Every role owns distinct activities. Geotechnical & excavation activities validated by{' '}
+              This gate covers substructure, superstructure, and handover milestones only. Geotechnical and excavation work within the structural scope validated by{' '}
               <span className="font-semibold text-teal-300">Site Engineer</span> are forwarded to{' '}
-              <span className="font-semibold text-blue-300">Admin</span> for final verification. Field operations validated by{' '}
+              <span className="font-semibold text-amber-300">Admin</span> for final verification. Structural milestones validated by{' '}
               <span className="font-semibold text-emerald-300">Site Manager</span> are verified by the{' '}
-              <span className="font-semibold text-indigo-300">Project Manager</span>. Finally,{' '}
+              <span className="font-semibold text-slate-200">Project Manager</span>. Finally,{' '}
               <span className="font-semibold text-purple-300">Top Management</span> maintains executive visibility.
             </p>
           </div>
@@ -617,9 +629,9 @@ export const PMActivitySectionValidation: React.FC<PMActivitySectionValidationPr
                   : activeRole === 'Site Manager'
                   ? 'bg-emerald-600'
                   : activeRole === 'Admin'
-                  ? 'bg-blue-600'
+                  ? 'bg-amber-600'
                   : activeRole === 'Project Manager'
-                  ? 'bg-indigo-600'
+                  ? 'bg-slate-600'
                   : 'bg-purple-600'
               }`}
             >
@@ -701,16 +713,16 @@ export const PMActivitySectionValidation: React.FC<PMActivitySectionValidationPr
               onClick={() => setActiveRole('Admin')}
               className={`p-3 rounded-xl border text-left transition-all ${
                 activeRole === 'Admin'
-                  ? 'bg-blue-600/20 border-blue-500 shadow-md shadow-blue-950 text-white'
+                  ? 'bg-amber-600/20 border-amber-500 shadow-md shadow-amber-950 text-white'
                   : 'bg-slate-800/60 border-slate-700/80 hover:bg-slate-800 text-slate-300'
               }`}
             >
               <div className="flex items-center justify-between mb-1">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-blue-400 flex items-center gap-1">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-amber-400 flex items-center gap-1">
                   <ShieldCheck className="w-3.5 h-3.5" />
                   Admin
                 </span>
-                <span className="text-[10px] px-1.5 py-0.2 rounded bg-blue-500/20 text-blue-300 font-extrabold">
+                <span className="text-[10px] px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-300 font-extrabold">
                   Geotech Verifier
                 </span>
               </div>
@@ -725,16 +737,16 @@ export const PMActivitySectionValidation: React.FC<PMActivitySectionValidationPr
               onClick={() => setActiveRole('Project Manager')}
               className={`p-3 rounded-xl border text-left transition-all ${
                 activeRole === 'Project Manager'
-                  ? 'bg-indigo-600/20 border-indigo-500 shadow-md shadow-indigo-950 text-white'
+                  ? 'bg-slate-600/20 border-slate-500 shadow-md shadow-slate-950 text-white'
                   : 'bg-slate-800/60 border-slate-700/80 hover:bg-slate-800 text-slate-300'
               }`}
             >
               <div className="flex items-center justify-between mb-1">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-400 flex items-center gap-1">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1">
                   <CheckCheck className="w-3.5 h-3.5" />
                   Project Manager
                 </span>
-                <span className="text-[10px] px-1.5 py-0.2 rounded bg-indigo-500/20 text-indigo-300 font-extrabold">
+                <span className="text-[10px] px-1.5 py-0.2 rounded bg-slate-500/20 text-slate-300 font-extrabold">
                   Master Verifier
                 </span>
               </div>
@@ -778,7 +790,7 @@ export const PMActivitySectionValidation: React.FC<PMActivitySectionValidationPr
               <p>
                 <strong className="text-white">Site Engineer Geotechnical & Excavation Scope:</strong> You validate geotechnical soil investigations, borelog profiles, SPT test records, bulk excavation earthworks, pit shoring, and dewatering. Clicking{' '}
                 <span className="text-teal-300 font-bold">Validate (YES)</span> approves Stage 1 and forwards the task directly to{' '}
-                <span className="text-blue-300 font-bold">Admin for Final Verification</span>. The task will{' '}
+                <span className="text-amber-300 font-bold">Admin for Final Verification</span>. The task will{' '}
                 <strong className="text-amber-300">ONLY be officially recorded once verified by Admin</strong>.
               </p>
             )}
@@ -786,20 +798,18 @@ export const PMActivitySectionValidation: React.FC<PMActivitySectionValidationPr
               <p>
                 <strong className="text-white">Site Manager Scope:</strong> You can only validate Site Manager activities (masonry, finishes, MEP). Clicking{' '}
                 <span className="text-emerald-300 font-bold">Validate (YES)</span> approves Stage 1 and forwards the activity into the{' '}
-                <span className="text-indigo-300 font-bold">Awaiting PM Verification</span> queue. It will{' '}
+                <span className="text-slate-300 font-bold">Awaiting PM Verification</span> queue. It will{' '}
                 <strong className="text-amber-300">ONLY be recorded once verified by the Project Manager</strong>.
               </p>
             )}
             {activeRole === 'Admin' && (
               <p>
-                <strong className="text-white">Admin Scope & Final Verification Gate:</strong> (1) You validate administrative statutory tasks (surveys, licenses, handover) which forward to PM. (2){' '}
-                <strong className="text-blue-300">Final Verification Authority:</strong> You perform Stage 2 Final Verification on Site Engineer's Geotechnical & Excavation activities in the verification queue below—countersigning and officially recording them into the master project ledger.
+                <strong className="text-white">Admin Scope & Final Verification Gate:</strong> You review handover clearances and countersign substructure inspection records forwarded by the Site Engineer, then officially record approved milestones in the project ledger.
               </p>
             )}
             {activeRole === 'Project Manager' && (
               <p>
-                <strong className="text-white">Project Manager Dual Authority:</strong> (1) You directly validate core structural milestones (slabs, columns, cranes) which become recorded immediately. (2){' '}
-                <strong className="text-indigo-300">Mandatory Countersign Gate:</strong> You verify and countersign activities submitted by Site Manager and Admin in the queue below—only upon your verification are they officially recorded.
+                <strong className="text-white">Project Manager Dual Authority:</strong> You validate structural milestones directly and countersign Site Manager or Admin approvals for structural and handover work. Approved items are recorded only after the required verification.
               </p>
             )}
             {activeRole === 'Top Management' && (
@@ -819,13 +829,13 @@ export const PMActivitySectionValidation: React.FC<PMActivitySectionValidationPr
               onClick={() => setAdminSubTab('geotech_queue')}
               className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
                 adminSubTab === 'geotech_queue'
-                  ? 'bg-blue-600 text-white shadow-sm shadow-blue-600/20'
+                  ? 'bg-amber-600 text-white shadow-sm shadow-amber-600/20'
                   : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
               }`}
             >
               <CheckCheck className="w-3.5 h-3.5" />
-              <span>Awaiting Admin Verification Queue (Geotech & Excavation)</span>
-              {activities.filter(
+              <span>Awaiting Admin Verification Queue (Substructure)</span>
+              {projectActivities.filter(
                 (a) =>
                   !a.final_recorded &&
                   (a.validation_status === 'AWAITING_ADMIN_VERIFICATION' ||
@@ -834,7 +844,7 @@ export const PMActivitySectionValidation: React.FC<PMActivitySectionValidationPr
               ).length > 0 && (
                 <span className="px-1.5 py-0.2 rounded-full bg-amber-400 text-slate-900 font-extrabold text-[10px]">
                   {
-                    activities.filter(
+                    projectActivities.filter(
                       (a) =>
                         !a.final_recorded &&
                         (a.validation_status === 'AWAITING_ADMIN_VERIFICATION' ||
@@ -849,7 +859,7 @@ export const PMActivitySectionValidation: React.FC<PMActivitySectionValidationPr
               onClick={() => setAdminSubTab('statutory')}
               className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
                 adminSubTab === 'statutory'
-                  ? 'bg-blue-600 text-white shadow-sm shadow-blue-600/20'
+                  ? 'bg-amber-600 text-white shadow-sm shadow-amber-600/20'
                   : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
               }`}
             >
@@ -859,7 +869,7 @@ export const PMActivitySectionValidation: React.FC<PMActivitySectionValidationPr
           </div>
           <div className="text-[11px] text-slate-500 font-medium">
             {adminSubTab === 'geotech_queue'
-              ? 'Site Engineer validated tasks awaiting your final statutory & geotechnical sign-off'
+              ? 'Substructure inspection records awaiting your countersignature'
               : 'Direct administrative permits, clearances, and handover milestones'}
           </div>
         </div>
@@ -873,13 +883,13 @@ export const PMActivitySectionValidation: React.FC<PMActivitySectionValidationPr
               onClick={() => setPmSubTab('queue')}
               className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
                 pmSubTab === 'queue'
-                  ? 'bg-indigo-600 text-white shadow-sm shadow-indigo-600/20'
+                  ? 'bg-slate-600 text-white shadow-sm shadow-slate-600/20'
                   : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
               }`}
             >
               <CheckCheck className="w-3.5 h-3.5" />
               <span>Awaiting PM Verification Queue</span>
-              {activities.filter(
+              {projectActivities.filter(
                 (a) =>
                   !a.final_recorded &&
                   (a.validation_status === 'AWAITING_PM_VERIFICATION' ||
@@ -887,7 +897,7 @@ export const PMActivitySectionValidation: React.FC<PMActivitySectionValidationPr
               ).length > 0 && (
                 <span className="px-1.5 py-0.2 rounded-full bg-amber-400 text-slate-900 font-extrabold text-[10px]">
                   {
-                    activities.filter(
+                    projectActivities.filter(
                       (a) =>
                         !a.final_recorded &&
                         (a.validation_status === 'AWAITING_PM_VERIFICATION' ||
@@ -902,14 +912,14 @@ export const PMActivitySectionValidation: React.FC<PMActivitySectionValidationPr
               onClick={() => setPmSubTab('direct')}
               className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
                 pmSubTab === 'direct'
-                  ? 'bg-indigo-600 text-white shadow-sm shadow-indigo-600/20'
+                  ? 'bg-slate-600 text-white shadow-sm shadow-slate-600/20'
                   : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
               }`}
             >
               <Building2 className="w-3.5 h-3.5" />
               <span>PM Direct Structural Activities</span>
               <span className="text-[10px] text-slate-500">
-                ({activities.filter((a) => a.assigned_role === 'Project Manager').length})
+                ({projectActivities.filter((a) => a.assigned_role === 'Project Manager').length})
               </span>
             </button>
 
@@ -917,18 +927,18 @@ export const PMActivitySectionValidation: React.FC<PMActivitySectionValidationPr
               onClick={() => setPmSubTab('all')}
               className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
                 pmSubTab === 'all'
-                  ? 'bg-indigo-600 text-white shadow-sm shadow-indigo-600/20'
+                  ? 'bg-slate-600 text-white shadow-sm shadow-slate-600/20'
                   : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
               }`}
             >
               <Layers className="w-3.5 h-3.5" />
               <span>All Project Activities</span>
-              <span className="text-[10px] text-slate-500">({activities.length})</span>
+              <span className="text-[10px] text-slate-500">({projectActivities.length})</span>
             </button>
           </div>
 
           {pmSubTab === 'queue' && (
-            <div className="text-[11px] text-indigo-700 font-semibold bg-indigo-50 px-3 py-1 rounded-lg border border-indigo-200">
+            <div className="text-[11px] text-slate-700 font-semibold bg-slate-50 px-3 py-1 rounded-lg border border-slate-200">
               ⚡ Action: Countersign verified items to officially record them.
             </div>
           )}
@@ -961,7 +971,7 @@ export const PMActivitySectionValidation: React.FC<PMActivitySectionValidationPr
               <Award className="w-3.5 h-3.5" />
               <span>Officially Recorded Registry (PM Verified)</span>
               <span className="px-1.5 py-0.2 rounded-full bg-emerald-100 text-emerald-800 font-extrabold text-[10px]">
-                {activities.filter((a) => a.final_recorded).length}
+                {projectActivities.filter((a) => a.final_recorded).length}
               </span>
             </button>
           </div>
@@ -980,12 +990,12 @@ export const PMActivitySectionValidation: React.FC<PMActivitySectionValidationPr
           <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
             <div className="p-3.5 rounded-xl bg-white border border-slate-200 shadow-xs">
               <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
-                Total Activities
+                Governed Activities
               </span>
               <div className="text-2xl font-black text-slate-900 mt-1">
                 {governanceSummary.total_activities}
               </div>
-              <span className="text-[10px] text-slate-500 font-medium">100% Work Breakdown</span>
+              <span className="text-[10px] text-slate-500 font-medium">Structural & handover scope</span>
             </div>
 
             <div className="p-3.5 rounded-xl bg-white border border-emerald-200 shadow-xs">
@@ -1004,13 +1014,13 @@ export const PMActivitySectionValidation: React.FC<PMActivitySectionValidationPr
             <div className="p-3.5 rounded-xl bg-white border border-teal-200 shadow-xs">
               <span className="text-[10px] font-bold text-teal-600 uppercase tracking-wider block flex items-center gap-1">
                 <Clock className="w-3 h-3" />
-                Awaiting Admin (Geotech)
+                Awaiting Admin (Substructure)
               </span>
               <div className="text-2xl font-black text-teal-600 mt-1">
                 {governanceSummary.awaiting_admin_count ?? 0}
               </div>
               <span className="text-[10px] text-teal-700 font-medium">
-                SE Validated Geotech/Excavation
+                Site Engineer validated foundation / excavation records
               </span>
             </div>
 
@@ -1183,7 +1193,7 @@ export const PMActivitySectionValidation: React.FC<PMActivitySectionValidationPr
                 <div className="p-5 space-y-3 bg-white">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      <div className="w-7 h-7 rounded-lg bg-blue-100 text-blue-700 flex items-center justify-center font-bold">
+                      <div className="w-7 h-7 rounded-lg bg-amber-100 text-amber-700 flex items-center justify-center font-bold">
                         <ShieldCheck className="w-4 h-4" />
                       </div>
                       <div>
@@ -1191,7 +1201,7 @@ export const PMActivitySectionValidation: React.FC<PMActivitySectionValidationPr
                         <span className="text-[10px] text-slate-400">Alexander Vance</span>
                       </div>
                     </div>
-                    <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-50 text-blue-800 border border-blue-200">
+                    <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-200">
                       {governanceSummary.roles['Admin'].total} Activities
                     </span>
                   </div>
@@ -1199,7 +1209,7 @@ export const PMActivitySectionValidation: React.FC<PMActivitySectionValidationPr
                   <div className="space-y-1.5 text-xs">
                     <div className="flex justify-between text-slate-600">
                       <span>Officially Recorded (PM Verified):</span>
-                      <strong className="text-blue-700">
+                      <strong className="text-amber-700">
                         {governanceSummary.roles['Admin'].final_recorded}
                       </strong>
                     </div>
@@ -1232,7 +1242,7 @@ export const PMActivitySectionValidation: React.FC<PMActivitySectionValidationPr
                     </div>
                     <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
                       <div
-                        className="bg-blue-500 h-2 rounded-full transition-all"
+                        className="bg-amber-500 h-2 rounded-full transition-all"
                         style={{ width: `${governanceSummary.roles['Admin'].recorded_percentage}%` }}
                       />
                     </div>
@@ -1245,7 +1255,7 @@ export const PMActivitySectionValidation: React.FC<PMActivitySectionValidationPr
                 <div className="p-5 space-y-3 bg-white">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      <div className="w-7 h-7 rounded-lg bg-indigo-100 text-indigo-700 flex items-center justify-center font-bold">
+                      <div className="w-7 h-7 rounded-lg bg-slate-100 text-slate-700 flex items-center justify-center font-bold">
                         <CheckCheck className="w-4 h-4" />
                       </div>
                       <div>
@@ -1253,7 +1263,7 @@ export const PMActivitySectionValidation: React.FC<PMActivitySectionValidationPr
                         <span className="text-[10px] text-slate-400">Marcus Brody</span>
                       </div>
                     </div>
-                    <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-indigo-50 text-indigo-800 border border-indigo-200">
+                    <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-50 text-slate-800 border border-slate-200">
                       {governanceSummary.roles['Project Manager'].total} Activities
                     </span>
                   </div>
@@ -1261,7 +1271,7 @@ export const PMActivitySectionValidation: React.FC<PMActivitySectionValidationPr
                   <div className="space-y-1.5 text-xs">
                     <div className="flex justify-between text-slate-600">
                       <span>Direct PM Recorded:</span>
-                      <strong className="text-indigo-700">
+                      <strong className="text-slate-700">
                         {governanceSummary.roles['Project Manager'].final_recorded}
                       </strong>
                     </div>
@@ -1294,7 +1304,7 @@ export const PMActivitySectionValidation: React.FC<PMActivitySectionValidationPr
                     </div>
                     <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
                       <div
-                        className="bg-indigo-500 h-2 rounded-full transition-all"
+                        className="bg-slate-500 h-2 rounded-full transition-all"
                         style={{ width: `${governanceSummary.roles['Project Manager'].recorded_percentage}%` }}
                       />
                     </div>
@@ -1339,8 +1349,8 @@ export const PMActivitySectionValidation: React.FC<PMActivitySectionValidationPr
                             item.assigned_role === 'Site Manager'
                               ? 'bg-emerald-100 text-emerald-800'
                               : item.assigned_role === 'Admin'
-                              ? 'bg-blue-100 text-blue-800'
-                              : 'bg-indigo-100 text-indigo-800'
+                              ? 'bg-amber-100 text-amber-800'
+                              : 'bg-slate-100 text-slate-800'
                           }`}
                         >
                           {item.assigned_role}
@@ -1617,8 +1627,8 @@ export const PMActivitySectionValidation: React.FC<PMActivitySectionValidationPr
                                           : act.assigned_role === 'Site Manager'
                                           ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
                                           : act.assigned_role === 'Admin'
-                                          ? 'bg-blue-50 text-blue-800 border-blue-300'
-                                          : 'bg-indigo-50 text-indigo-800 border-indigo-300'
+                                          ? 'bg-amber-50 text-amber-800 border-amber-300'
+                                          : 'bg-slate-50 text-slate-800 border-slate-300'
                                       }`}
                                     >
                                       Owner: {isGeotechTask || act.assigned_role === 'Site Engineer' ? 'Site Engineer' : act.assigned_role || 'Site Manager'}
@@ -1661,8 +1671,8 @@ export const PMActivitySectionValidation: React.FC<PMActivitySectionValidationPr
                                       </span>
                                     )}
                                     {act.pm_verification_status === 'VERIFIED' && (
-                                      <span className="px-2 py-0.5 rounded bg-indigo-50 text-indigo-800 border border-indigo-200 flex items-center gap-1 font-semibold">
-                                        <CheckCheck className="w-3 h-3 text-indigo-600" />
+                                      <span className="px-2 py-0.5 rounded bg-slate-50 text-slate-800 border border-slate-200 flex items-center gap-1 font-semibold">
+                                        <CheckCheck className="w-3 h-3 text-slate-600" />
                                         Stage 2 Verified: {act.pm_verified_by || (isGeotechTask ? 'Alexander Vance (Admin)' : 'Marcus Brody (PM)')}
                                       </span>
                                     )}
@@ -1672,7 +1682,7 @@ export const PMActivitySectionValidation: React.FC<PMActivitySectionValidationPr
                                       </span>
                                     )}
                                     {act.pm_verification_notes && (
-                                      <span className="text-indigo-700 italic max-w-md truncate">
+                                      <span className="text-slate-700 italic max-w-md truncate">
                                         "{act.pm_verification_notes}"
                                       </span>
                                     )}
@@ -1739,7 +1749,7 @@ export const PMActivitySectionValidation: React.FC<PMActivitySectionValidationPr
                                         <button
                                           onClick={() => handleValidateYes(act)}
                                           disabled={loadingActivityId === act.id}
-                                          className="px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-extrabold text-xs shadow-sm flex items-center gap-1 transition-all disabled:opacity-50"
+                                          className="px-3 py-1.5 rounded-xl bg-amber-600 hover:bg-amber-700 active:bg-amber-800 text-white font-extrabold text-xs shadow-sm flex items-center gap-1 transition-all disabled:opacity-50"
                                           title="Verify & Countersign: Officially Record in Master Ledger"
                                         >
                                           <CheckCheck className="w-3.5 h-3.5" />
@@ -1756,7 +1766,7 @@ export const PMActivitySectionValidation: React.FC<PMActivitySectionValidationPr
                                         <button
                                           onClick={() => handleValidateYes(act)}
                                           disabled={loadingActivityId === act.id}
-                                          className="px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-sm flex items-center gap-1 transition-all disabled:opacity-50"
+                                          className="px-3 py-1.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs shadow-sm flex items-center gap-1 transition-all disabled:opacity-50"
                                           title="Validate YES (Pass to Project Manager)"
                                         >
                                           <Check className="w-3.5 h-3.5" />

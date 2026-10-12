@@ -108,6 +108,142 @@ TR05_GEOTECHNICAL_DATA = {
 class WeatherSoilService:
 
     @staticmethod
+    def parse_weather_report_content(raw_text: str, filename: Optional[str] = None) -> Dict[str, Any]:
+        """Extracts explicitly reported weather readings without inventing missing values."""
+        if not raw_text or not raw_text.strip():
+            raise ValueError("The weather report contains no readable text.")
+
+        def extract_labeled_number(labels: str) -> Optional[tuple[float, str, str]]:
+            for line in raw_text.splitlines():
+                label_match = re.search(labels, line, re.IGNORECASE)
+                if not label_match:
+                    continue
+                value_match = re.search(
+                    r"(?<![A-Za-z])(-?\d+(?:[.,]\d+)?)\s*(°\s*[CF]|degrees?\s*[CF]|"
+                    r"km/?h|kph|m/?s|mph|knots?|%|mm|in(?:ches?)?)?",
+                    line[label_match.end():],
+                    re.IGNORECASE,
+                )
+                if value_match:
+                    value = float(value_match.group(1).replace(",", "."))
+                    unit = value_match.group(2) or ""
+                    if not unit:
+                        preceding_unit = re.search(r"°\s*[CF]|degrees?\s*[CF]", line, re.IGNORECASE)
+                        if preceding_unit:
+                            unit = preceding_unit.group(0)
+                    return value, unit.lower().replace(" ", ""), line.lower()
+            return None
+
+        extracted: Dict[str, Any] = {
+            "temperature_c": None,
+            "wind_speed_kmh": None,
+            "weather_condition": None,
+            "humidity_percent": None,
+            "rainfall_mm": None,
+            "weather_report_filename": filename,
+        }
+        warnings: List[str] = []
+
+        temperature = extract_labeled_number(
+            r"\b(?:ambient\s+(?:air\s+)?|current\s+|mean\s+|average\s+)?"
+            r"(?:air\s+)?(?:temperature|temp\.?)\b"
+        )
+        if temperature:
+            value, unit, line = temperature
+            if unit in {"°f", "degreesf"} or "fahrenheit" in line:
+                value = (value - 32) * 5 / 9
+            if -60 <= value <= 65:
+                extracted["temperature_c"] = round(value, 1)
+            else:
+                warnings.append("Temperature was not applied because it is outside the supported range (-60 to 65 °C).")
+
+        wind = extract_labeled_number(r"\b(?:wind\s+speed|wind\s+velocity)\b")
+        if not wind:
+            wind = extract_labeled_number(r"\b(?:wind\s+)?gusts?\b")
+        if wind:
+            value, unit, _ = wind
+            if unit in {"m/s", "ms"}:
+                value *= 3.6
+            elif unit == "mph":
+                value *= 1.609344
+            elif unit.startswith("knot"):
+                value *= 1.852
+            if 0 <= value <= 300:
+                extracted["wind_speed_kmh"] = round(value, 1)
+            else:
+                warnings.append("Wind speed was not applied because it is outside the supported range (0 to 300 km/h).")
+
+        humidity = extract_labeled_number(r"\b(?:relative\s+humidity|humidity|rh)\b")
+        if humidity:
+            value = humidity[0]
+            if 0 <= value <= 100:
+                extracted["humidity_percent"] = round(value, 1)
+            else:
+                warnings.append("Humidity was not applied because it is outside the supported range (0 to 100%).")
+
+        rainfall = extract_labeled_number(r"\b(?:daily\s+)?(?:rainfall|precipitation)\b")
+        if rainfall:
+            value, unit, _ = rainfall
+            if unit.startswith("in"):
+                value *= 25.4
+            if 0 <= value <= 2000:
+                extracted["rainfall_mm"] = round(value, 1)
+            else:
+                warnings.append("Rainfall was not applied because it is outside the supported range (0 to 2000 mm).")
+
+        text_lower = raw_text.lower()
+        condition_match = re.search(
+            r"(?im)^\s*(?:weather\s+)?(?:condition|sky\s+condition)\s*[:=]\s*([^\r\n]+)",
+            raw_text,
+        )
+        condition_text = condition_match.group(1).lower() if condition_match else text_lower
+        if "thunderstorm" in condition_text or "thunder storm" in condition_text:
+            extracted["weather_condition"] = "Thunderstorm"
+        elif re.search(r"\bheavy\s+rain(?:fall)?\b", condition_text):
+            extracted["weather_condition"] = "Heavy Rain"
+        elif re.search(r"\b(?:storm|cyclone)\b", condition_text):
+            extracted["weather_condition"] = "Storm"
+        elif re.search(r"\b(?:rain|rainy|raining)\b", condition_text) or (
+            extracted["rainfall_mm"] is not None and extracted["rainfall_mm"] > 0
+        ):
+            extracted["weather_condition"] = "Rain"
+        elif "gale" in condition_text or "high wind" in condition_text:
+            extracted["weather_condition"] = "High Wind"
+        elif "extreme heat" in condition_text or "heatwave" in condition_text or "heat wave" in condition_text:
+            extracted["weather_condition"] = "Extreme Heat"
+        elif "cloudy" in condition_text or "overcast" in condition_text:
+            extracted["weather_condition"] = "Cloudy"
+        elif "clear" in condition_text or "sunny" in condition_text:
+            extracted["weather_condition"] = "Clear"
+
+        extracted_fields = [
+            key for key in ("temperature_c", "wind_speed_kmh", "humidity_percent", "rainfall_mm", "weather_condition")
+            if extracted[key] is not None
+        ]
+        if not extracted_fields:
+            raise ValueError(
+                "No supported weather readings were found. The report must include a labeled temperature, "
+                "wind speed, humidity, rainfall, or recognizable weather condition."
+            )
+
+        missing = [
+            label for key, label in (
+                ("temperature_c", "temperature"),
+                ("wind_speed_kmh", "wind speed"),
+                ("humidity_percent", "humidity"),
+                ("rainfall_mm", "rainfall"),
+                ("weather_condition", "condition"),
+            )
+            if extracted[key] is None
+        ]
+        if missing:
+            warnings.append(f"No {', '.join(missing)} reading was found; existing form values were left unchanged.")
+        extracted["extracted_fields"] = extracted_fields
+        extracted["warnings"] = warnings
+        extracted["summary"] = f"Extracted {len(extracted_fields)} weather field(s) from the report."
+        return extracted
+
+    @staticmethod
     def generate_dynamic_geotechnical_details(
         raw_text: str = "",
         filename: Optional[str] = None,
@@ -818,6 +954,8 @@ class WeatherSoilService:
             weather_condition=data.weather_condition,
             humidity_percent=data.humidity_percent,
             rainfall_mm=data.rainfall_mm,
+            weather_report_filename=data.weather_report_filename,
+            weather_report_raw_text=data.weather_report_raw_text,
             soil_type=soil_type,
             safe_bearing_capacity_kpa=sbc_kpa,
             moisture_content_percent=moisture_pct,
