@@ -98,10 +98,10 @@ export const ReportHeader: React.FC<{ ctx: GeotechReportCtx }> = ({ ctx }) => {
         <button
           onClick={handleExportStandardJSON}
           disabled={!currentIntelDoc}
-          className="p-2 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 text-xs font-semibold disabled:opacity-50 transition-colors"
+          className="p-2 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 text-xs font-semibold disabled:opacity-50 transition-colors"
           title="Export Standard 5-Layers JSON"
         >
-          <Download className="w-4 h-4 text-indigo-600" />
+          <Download className="w-4 h-4 text-slate-600" />
         </button>
 
         <button

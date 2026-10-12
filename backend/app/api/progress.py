@@ -7,13 +7,14 @@ from backend.app.database.connection import get_db
 from backend.app.models.all_models import DailyProgress, Activity, Project, User, Blocker, SiteObservation
 from backend.app.schemas.all_schemas import (
     DailyProgressCreate, DailyProgressResponse,
-    BlockerCreate, BlockerUpdate, BlockerResponse,
+    BlockerCreate, BlockerUpdate, BlockerResponse, BlockerSubmissionResponse,
     SiteObservationCreate, SiteObservationResponse,
     ValidationChecklistSubmission
 )
 from backend.app.services.progress_service import ProgressService
 from backend.app.services.audit_service import AuditService
-from backend.app.utils.security import get_current_user_optional
+from backend.app.utils.security import get_current_user_optional, require_roles
+from backend.app.api.activities import synthesize_task_requirements
 
 router = APIRouter(tags=["Monitoring & Daily Progress"])
 
@@ -147,6 +148,17 @@ def get_today_site_activities(project_id: int, db: Session = Depends(get_db)):
             .order_by(DailyProgress.report_date.desc())
             .first()
         )
+        reqs = synthesize_task_requirements(
+            name=a.name,
+            work_pkg=a.work_package,
+            tower=a.tower,
+            floor=a.floor,
+            qty=a.quantity,
+            unit=a.unit,
+            raw_labour=a.required_labour or 8,
+            raw_mat=a.required_material,
+            raw_equip=a.required_equipment
+        )
         rows.append({
             "activity_id": a.id,
             "activity_name": a.name,
@@ -162,6 +174,8 @@ def get_today_site_activities(project_id: int, db: Session = Depends(get_db)):
             "required_labour": a.required_labour,
             "required_material": a.required_material,
             "required_equipment": a.required_equipment,
+            "brief_requirements": reqs["brief_requirements"],
+            "labour_requirement": reqs["labour_requirement"],
             "latest_actual_qty": latest_prog.actual_quantity if latest_prog else 0.0,
             "latest_workers_assigned": latest_prog.workers_assigned if latest_prog else a.required_labour,
             "latest_daily_productivity": latest_prog.daily_productivity if latest_prog else 0.0,
@@ -171,22 +185,36 @@ def get_today_site_activities(project_id: int, db: Session = Depends(get_db)):
             "end_date": a.end_date.isoformat(),
         })
 
+    total_labour = sum(r["labour_requirement"]["total_headcount"] for r in rows)
+
     return {
         "project_id": project_id,
         "date": today.isoformat(),
         "total_active_workfronts": len(rows),
+        "total_labour_required": total_labour,
         "activities": rows
     }
 
 # Blocker endpoints
-@router.post("/api/projects/{project_id}/blockers", response_model=BlockerResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/api/projects/{project_id}/blockers", response_model=BlockerSubmissionResponse, status_code=status.HTTP_201_CREATED)
 def report_blocker(
     project_id: int,
     blocker_in: BlockerCreate,
     db: Session = Depends(get_db),
     current_user: Optional[User] = Depends(get_current_user_optional)
 ):
+    project = db.query(Project).filter(Project.id == project_id).first()
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
     b_data = blocker_in.model_dump()
+    if b_data.get("activity_id"):
+        activity = db.query(Activity).filter(
+            Activity.id == b_data["activity_id"],
+            Activity.project_id == project_id
+        ).first()
+        if not activity:
+            raise HTTPException(status_code=400, detail="Activity does not belong to this project")
     b_data["project_id"] = project_id
     b_data["reported_by_user_id"] = current_user.id if current_user else None
     blocker = Blocker(**b_data)
@@ -203,13 +231,20 @@ def report_blocker(
         user_id=current_user.id if current_user else None
     )
 
-    act = db.query(Activity).filter(Activity.id == blocker.activity_id).first() if blocker.activity_id else None
-    b_dict = {c.name: getattr(blocker, c.name) for c in blocker.__table__.columns}
-    b_dict["activity_name"] = act.name if act else None
-    return b_dict
+    return {
+        "id": blocker.id,
+        "project_id": blocker.project_id,
+        "status": blocker.status,
+        "created_at": blocker.created_at,
+        "message": "Hindrance report saved for Admin review.",
+    }
 
 @router.get("/api/projects/{project_id}/blockers", response_model=List[BlockerResponse])
-def list_blockers(project_id: int, db: Session = Depends(get_db)):
+def list_blockers(
+    project_id: int,
+    db: Session = Depends(get_db),
+    admin: User = Depends(require_roles(["Admin"]))
+):
     blockers = (
         db.query(Blocker)
         .filter(Blocker.project_id == project_id)
@@ -230,7 +265,7 @@ def update_blocker(
     id: int,
     b_update: BlockerUpdate,
     db: Session = Depends(get_db),
-    current_user: Optional[User] = Depends(get_current_user_optional)
+    current_user: User = Depends(require_roles(["Admin"]))
 ):
     blocker = db.query(Blocker).filter(Blocker.id == id).first()
     if not blocker:

@@ -7,8 +7,9 @@ import openpyxl
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from backend.app.database.connection import get_db
 from backend.app.models.all_models import (
-    Project, Activity, DailyProgress, Resource, MLDelayPrediction, ProjectCompletionForecast, Blocker
+    Project, Activity, DailyProgress, Resource, MLDelayPrediction, ProjectCompletionForecast, Blocker, User
 )
+from backend.app.utils.security import require_roles
 
 router = APIRouter(prefix="/api/projects/{project_id}/reports", tags=["Reports"])
 
@@ -44,7 +45,11 @@ def get_daily_report(project_id: int, report_date: str = None, db: Session = Dep
     }
 
 @router.get("/delay")
-def get_delay_report(project_id: int, db: Session = Depends(get_db)):
+def get_delay_report(
+    project_id: int,
+    db: Session = Depends(get_db),
+    admin: User = Depends(require_roles(["Admin"]))
+):
     """Comprehensive Delay & Slippage Report."""
     delayed = (
         db.query(Activity)

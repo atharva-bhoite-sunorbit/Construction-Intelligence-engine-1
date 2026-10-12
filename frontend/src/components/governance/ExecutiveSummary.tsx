@@ -10,12 +10,12 @@ export const ExecutiveSummary: React.FC<{ ctx: PMValidationCtx }> = ({ ctx }) =>
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
         <div className="p-3.5 rounded-xl bg-white border border-slate-200 shadow-xs">
           <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
-            Total Activities
+            Governed Activities
           </span>
           <div className="text-2xl font-black text-slate-900 mt-1">
             {governanceSummary.total_activities}
           </div>
-          <span className="text-[10px] text-slate-500 font-medium">100% Work Breakdown</span>
+          <span className="text-[10px] text-slate-500 font-medium">Structural & handover scope</span>
         </div>
 
         <div className="p-3.5 rounded-xl bg-white border border-emerald-200 shadow-xs">
@@ -34,13 +34,13 @@ export const ExecutiveSummary: React.FC<{ ctx: PMValidationCtx }> = ({ ctx }) =>
         <div className="p-3.5 rounded-xl bg-white border border-teal-200 shadow-xs">
           <span className="text-[10px] font-bold text-teal-600 uppercase tracking-wider block flex items-center gap-1">
             <Clock className="w-3 h-3" />
-            Awaiting Admin (Geotech)
+            Awaiting Admin (Substructure)
           </span>
           <div className="text-2xl font-black text-teal-600 mt-1">
             {governanceSummary.awaiting_admin_count ?? 0}
           </div>
           <span className="text-[10px] text-teal-700 font-medium">
-            SE Validated Geotech/Excavation
+            Site Engineer validated foundation / excavation records
           </span>
         </div>
 
@@ -213,7 +213,7 @@ export const ExecutiveSummary: React.FC<{ ctx: PMValidationCtx }> = ({ ctx }) =>
             <div className="p-5 space-y-3 bg-white">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <div className="w-7 h-7 rounded-lg bg-blue-100 text-blue-700 flex items-center justify-center font-bold">
+                  <div className="w-7 h-7 rounded-lg bg-amber-100 text-amber-700 flex items-center justify-center font-bold">
                     <ShieldCheck className="w-4 h-4" />
                   </div>
                   <div>
@@ -221,7 +221,7 @@ export const ExecutiveSummary: React.FC<{ ctx: PMValidationCtx }> = ({ ctx }) =>
                     <span className="text-[10px] text-slate-400">Alexander Vance</span>
                   </div>
                 </div>
-                <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-50 text-blue-800 border border-blue-200">
+                <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-200">
                   {governanceSummary.roles['Admin'].total} Activities
                 </span>
               </div>
@@ -229,7 +229,7 @@ export const ExecutiveSummary: React.FC<{ ctx: PMValidationCtx }> = ({ ctx }) =>
               <div className="space-y-1.5 text-xs">
                 <div className="flex justify-between text-slate-600">
                   <span>Officially Recorded (PM Verified):</span>
-                  <strong className="text-blue-700">
+                  <strong className="text-amber-700">
                     {governanceSummary.roles['Admin'].final_recorded}
                   </strong>
                 </div>
@@ -262,7 +262,7 @@ export const ExecutiveSummary: React.FC<{ ctx: PMValidationCtx }> = ({ ctx }) =>
                 </div>
                 <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
                   <div
-                    className="bg-blue-500 h-2 rounded-full transition-all"
+                    className="bg-amber-500 h-2 rounded-full transition-all"
                     style={{ width: `${governanceSummary.roles['Admin'].recorded_percentage}%` }}
                   />
                 </div>
@@ -275,7 +275,7 @@ export const ExecutiveSummary: React.FC<{ ctx: PMValidationCtx }> = ({ ctx }) =>
             <div className="p-5 space-y-3 bg-white">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <div className="w-7 h-7 rounded-lg bg-indigo-100 text-indigo-700 flex items-center justify-center font-bold">
+                  <div className="w-7 h-7 rounded-lg bg-slate-100 text-slate-700 flex items-center justify-center font-bold">
                     <CheckCheck className="w-4 h-4" />
                   </div>
                   <div>
@@ -283,7 +283,7 @@ export const ExecutiveSummary: React.FC<{ ctx: PMValidationCtx }> = ({ ctx }) =>
                     <span className="text-[10px] text-slate-400">Marcus Brody</span>
                   </div>
                 </div>
-                <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-indigo-50 text-indigo-800 border border-indigo-200">
+                <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-50 text-slate-800 border border-slate-200">
                   {governanceSummary.roles['Project Manager'].total} Activities
                 </span>
               </div>
@@ -291,7 +291,7 @@ export const ExecutiveSummary: React.FC<{ ctx: PMValidationCtx }> = ({ ctx }) =>
               <div className="space-y-1.5 text-xs">
                 <div className="flex justify-between text-slate-600">
                   <span>Direct PM Recorded:</span>
-                  <strong className="text-indigo-700">
+                  <strong className="text-slate-700">
                     {governanceSummary.roles['Project Manager'].final_recorded}
                   </strong>
                 </div>
@@ -324,7 +324,7 @@ export const ExecutiveSummary: React.FC<{ ctx: PMValidationCtx }> = ({ ctx }) =>
                 </div>
                 <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
                   <div
-                    className="bg-indigo-500 h-2 rounded-full transition-all"
+                    className="bg-slate-500 h-2 rounded-full transition-all"
                     style={{ width: `${governanceSummary.roles['Project Manager'].recorded_percentage}%` }}
                   />
                 </div>
@@ -369,8 +369,8 @@ export const ExecutiveSummary: React.FC<{ ctx: PMValidationCtx }> = ({ ctx }) =>
                         item.assigned_role === 'Site Manager'
                           ? 'bg-emerald-100 text-emerald-800'
                           : item.assigned_role === 'Admin'
-                          ? 'bg-blue-100 text-blue-800'
-                          : 'bg-indigo-100 text-indigo-800'
+                          ? 'bg-amber-100 text-amber-800'
+                          : 'bg-slate-100 text-slate-800'
                       }`}
                     >
                       {item.assigned_role}

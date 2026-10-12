@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect } from 'react';
 import { Activity, Project, User, GovernanceSummary } from '../../types';
 import { apiClient } from '../../api/client';
+import { isStructureOrHandoverActivity } from '../../utils/activityPresentation';
 import { GovernanceRole, GroupByOption, StatusFilterOption, REJECTION_PRESETS } from './shared';
 
 export interface PMValidationArgs {
@@ -98,11 +99,17 @@ export const usePMValidationState = ({
     return 'Sophia Sterling (Top Management)';
   }, [activeRole]);
 
-  // Role activities partitioning:
-  // All users have different activities!
+  // CRITICAL: Strict project isolation - only activities belonging to this project
+  const projectActivities = useMemo(() => {
+    return (activities || []).filter(
+      (activity) => activity.project_id === project.id && isStructureOrHandoverActivity(activity)
+    );
+  }, [activities, project.id]);
+
+  // Role activities partitioning strictly for current project:
   const roleActivities = useMemo(() => {
     if (activeRole === 'Site Engineer') {
-      return activities.filter(
+      return projectActivities.filter(
         (a) =>
           a.assigned_role === 'Site Engineer' ||
           (a.code || '').toUpperCase().startsWith('GX-') ||
@@ -111,12 +118,12 @@ export const usePMValidationState = ({
       );
     }
     if (activeRole === 'Site Manager') {
-      return activities.filter((a) => (a.assigned_role || 'Site Manager') === 'Site Manager');
+      return projectActivities.filter((a) => (a.assigned_role || 'Site Manager') === 'Site Manager');
     }
     if (activeRole === 'Admin') {
       if (adminSubTab === 'geotech_queue') {
         // Awaiting Admin Verification queue (Site Engineer validated activities)
-        return activities.filter(
+        return projectActivities.filter(
           (a) =>
             !a.final_recorded &&
             (a.validation_status === 'AWAITING_ADMIN_VERIFICATION' ||
@@ -124,12 +131,12 @@ export const usePMValidationState = ({
                 (a.assigned_role === 'Site Engineer' || (a.code || '').toUpperCase().startsWith('GX-'))))
         );
       }
-      return activities.filter((a) => a.assigned_role === 'Admin');
+      return projectActivities.filter((a) => a.assigned_role === 'Admin');
     }
     if (activeRole === 'Project Manager') {
       if (pmSubTab === 'queue') {
         // Awaiting PM Verification queue (activities approved by Site Manager or Admin statutory)
-        return activities.filter(
+        return projectActivities.filter(
           (a) =>
             !a.final_recorded &&
             (a.validation_status === 'AWAITING_PM_VERIFICATION' ||
@@ -138,26 +145,27 @@ export const usePMValidationState = ({
       }
       if (pmSubTab === 'direct') {
         // PM direct structural activities
-        return activities.filter((a) => a.assigned_role === 'Project Manager');
+        return projectActivities.filter((a) => a.assigned_role === 'Project Manager');
       }
-      // Master registry
-      return activities;
+      // Master registry for current project
+      return projectActivities;
     }
     // Top Management
     if (topMgmtSubTab === 'recorded') {
-      return activities.filter((a) => a.final_recorded === true);
+      return projectActivities.filter((a) => a.final_recorded === true);
     }
-    return activities;
-  }, [activities, activeRole, adminSubTab, pmSubTab, topMgmtSubTab]);
+    return projectActivities;
+  }, [projectActivities, activeRole, adminSubTab, pmSubTab, topMgmtSubTab]);
 
   // Filtered displayed activities based on search and status
   const displayedActivities = useMemo(() => {
     let pool = roleActivities;
     if (activeRole !== 'Top Management' && activeRole !== 'Project Manager' && showOtherRolesInReadOnly) {
-      pool = activities;
+      pool = projectActivities;
     }
 
     return pool.filter((act) => {
+      if (act.project_id !== project.id) return false;
       const matchesSearch =
         act.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         (act.code && act.code.toLowerCase().includes(searchQuery.toLowerCase())) ||
@@ -170,7 +178,7 @@ export const usePMValidationState = ({
       const matchesStatus = statusFilter === 'all' || currentStatus === statusFilter;
       return matchesSearch && matchesStatus;
     });
-  }, [roleActivities, activities, activeRole, showOtherRolesInReadOnly, searchQuery, statusFilter]);
+  }, [roleActivities, projectActivities, project.id, activeRole, showOtherRolesInReadOnly, searchQuery, statusFilter]);
 
   // Overall statistics for active role
   const roleStats = useMemo(() => {
@@ -466,6 +474,7 @@ export const usePMValidationState = ({
     fetchSummary,
     showToast,
     activeReviewerName,
+    projectActivities,
     roleActivities,
     displayedActivities,
     roleStats,

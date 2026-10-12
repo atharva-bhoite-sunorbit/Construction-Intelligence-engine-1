@@ -11,7 +11,7 @@ export const CubeViewport: React.FC<{ ctx: CubeCtx }> = ({ ctx }) => {
       <div
         className="absolute inset-0 opacity-15 pointer-events-none"
         style={{
-          backgroundImage: `radial-gradient(circle at 50% 30%, #38bdf8 0%, transparent 60%), radial-gradient(#334155 1px, transparent 1px)`,
+          backgroundImage: `radial-gradient(circle at 50% 30%, #64748b 0%, transparent 60%), radial-gradient(#334155 1px, transparent 1px)`,
           backgroundSize: '100% 100%, 28px 28px',
         }}
       />

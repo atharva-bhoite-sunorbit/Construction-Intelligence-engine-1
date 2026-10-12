@@ -12,6 +12,7 @@ import { ReportUploadModal } from '../components/geotech/ReportUploadModal';
 import { GeotechnicalCompareModal } from '../components/geotech/GeotechnicalCompareModal';
 import { FiveLayersAndPipelineView } from '../components/geotech/FiveLayersAndPipelineView';
 import { SptAndPropertiesView } from '../components/geotech/SptAndPropertiesView';
+import { VEHICLE_IMAGE_MAP, STRATA_THEMES, getStrataTheme, getExcavabilityBadge } from './GeotechnicalReportPageConstants';
 import { useGeotechReportState } from '../components/geotech/report/useGeotechReportState';
 import { OverviewTab } from '../components/geotech/report/OverviewTab';
 import { LayersTab } from '../components/geotech/report/LayersTab';
@@ -29,6 +30,7 @@ import { PushToScheduleModal } from '../components/geotech/report/PushToSchedule
 import { VehicleLightbox } from '../components/geotech/report/VehicleLightbox';
 import { ReportHeader } from '../components/geotech/report/ReportHeader';
 import { SummaryKpiCards } from '../components/geotech/report/SummaryKpiCards';
+export { VEHICLE_IMAGE_MAP, STRATA_THEMES, getStrataTheme, getExcavabilityBadge };
 
 interface GeotechnicalReportPageProps {
   project?: Project;
@@ -41,7 +43,7 @@ export const GeotechnicalReportPage: React.FC<GeotechnicalReportPageProps> = ({
   onNavigateToSchedule,
   onRefreshData,
 }) => {
-  const ctx = useGeotechReportState({ project, onRefreshData });
+  const ctx = useGeotechReportState({ project, onNavigateToSchedule, onRefreshData });
   const { reports, selectedReportId, currentIntelDoc, activeTab, setActiveTab, enlargedVehicle, isUploadModalOpen, setIsUploadModalOpen, isCompareModalOpen, setIsCompareModalOpen, inspectField, setInspectField, isPushModalOpen, projectId, handleUploadSuccess, handleExportStandardJSON, boqSyncStatus, setBoqSyncStatus, pInfo, bhList, gwData, labList, calcList, riskList, missingList, auditList, machineryList, rawLayersList, synthesizedReport } = ctx;
 
   return (
@@ -204,14 +206,14 @@ export const GeotechnicalReportPage: React.FC<GeotechnicalReportPageProps> = ({
               <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
                 <div>
                   <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2">
-                    <Rotate3d className="w-4 h-4 text-cyan-600" />
+                    <Rotate3d className="w-4 h-4 text-teal-600" />
                     <span>3D Subsurface Geological Model & Isometric Cutaway Cube</span>
                   </h3>
                   <p className="text-xs text-slate-500">
                     Dual 3D modes: Interactive isometric strata cube with exploded layer inspection & spatial borehole column interpolations.
                   </p>
                 </div>
-                <div className="px-3 py-1 rounded-full bg-cyan-100 text-cyan-900 border border-cyan-300 font-mono text-[10px] font-bold">
+                <div className="px-3 py-1 rounded-full bg-teal-100 text-teal-900 border border-teal-300 font-mono text-[10px] font-bold">
                   INTERPOLATED GEOLOGICAL MODEL
                 </div>
               </div>

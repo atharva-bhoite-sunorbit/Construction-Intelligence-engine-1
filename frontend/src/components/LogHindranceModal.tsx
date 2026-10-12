@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { X, AlertTriangle, ShieldAlert, Calendar, Clock, CheckCircle2, FileText, Pickaxe, Flame, Sparkles } from 'lucide-react';
-import { Activity, Project } from '../types';
+import { Activity, HindranceSubmissionReceipt, Project } from '../types';
 import { apiClient } from '../api/client';
 
 interface LogHindranceModalProps {
@@ -9,7 +9,7 @@ interface LogHindranceModalProps {
   project: Project;
   activities: Activity[];
   defaultActivityId?: number;
-  onHindranceCreated: () => void;
+  onHindranceCreated: (receipt: HindranceSubmissionReceipt) => void;
 }
 
 const HINDRANCE_CATEGORIES = [
@@ -60,7 +60,7 @@ export const LogHindranceModal: React.FC<LogHindranceModalProps> = ({
     setError(null);
 
     try {
-      await apiClient.createHindrance(project.id, {
+      const createdBlocker = await apiClient.createHindrance(project.id, {
         activity_id: activityId ? Number(activityId) : undefined,
         category,
         description: description.trim(),
@@ -73,7 +73,7 @@ export const LogHindranceModal: React.FC<LogHindranceModalProps> = ({
         difficulty_cause: difficultyCause.trim() || undefined,
       });
 
-      onHindranceCreated();
+      onHindranceCreated(createdBlocker);
       onClose();
     } catch (err: any) {
       console.error('Error logging hindrance:', err);

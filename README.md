@@ -117,6 +117,21 @@ Construction-1/
 
 ---
 
+### Importing the 41 ZOY Master Baseline
+
+The PDF baseline is stored separately from the live activity schedule. Importing it does not
+replace forecast or actual dates, progress, status, approvals, dependencies, or project history.
+Run a validation-only pass first, then add `--apply` to persist the baseline dates:
+
+```powershell
+.\venv\Scripts\python.exe scripts\import_zoy_pdf_baseline.py "C:\Users\athar\Downloads\ZOY - Baseline Master Schedule Tracker 06-OCT-2026(2).pdf"
+.\venv\Scripts\python.exe scripts\import_zoy_pdf_baseline.py "C:\Users\athar\Downloads\ZOY - Baseline Master Schedule Tracker 06-OCT-2026(2).pdf" --apply
+```
+
+The importer checks that every PDF task maps unambiguously to an existing 41 ZOY activity.
+If a row is unmatched or ambiguous, it stops without applying activity changes. Re-running a
+successful import is safe and updates only the stored baseline dates and PDF source metadata.
+
 ### 3. Running Automated Tests
 
 Run the comprehensive backend test suite:
@@ -187,4 +202,3 @@ X-API-Key: geo_live_xxxxxxxxxxxxxxxxxxxxxxxxx
 
 ## 📄 License
 This project is proprietary and confidential. All rights reserved.
-

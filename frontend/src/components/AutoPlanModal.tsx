@@ -143,7 +143,7 @@ export const AutoPlanModal: React.FC<AutoPlanModalProps> = ({
               <button
                 type="submit"
                 disabled={loading}
-                className="px-5 py-2 rounded-lg bg-gradient-to-r from-brand-600 to-indigo-600 hover:from-brand-500 hover:to-indigo-500 text-white font-medium shadow-lg shadow-brand-500/20 text-sm disabled:opacity-50 flex items-center gap-2"
+                className="px-5 py-2 rounded-lg bg-gradient-to-r from-brand-600 to-slate-600 hover:from-brand-500 hover:to-slate-500 text-white font-medium shadow-lg shadow-brand-500/20 text-sm disabled:opacity-50 flex items-center gap-2"
               >
                 <Wand2 className="w-4 h-4" />
                 {loading ? 'Synthesizing Sequence...' : 'Generate Auto Plan'}

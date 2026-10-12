@@ -1,30 +1,34 @@
-import { ShieldCheck, Info, Layers, HardHat, CheckCheck, Eye } from 'lucide-react';
+import { ShieldCheck, Info, Layers, HardHat, CheckCheck, Eye, Building2 } from 'lucide-react';
 import { PMValidationCtx } from './usePMValidationState';
 
 export const RoleBanner: React.FC<{ ctx: PMValidationCtx }> = ({ ctx }) => {
-  const { activeRole, setActiveRole, activeReviewerName } = ctx;
+  const { project, activeRole, setActiveRole, activeReviewerName, projectActivities } = ctx;
   return (
     <div className="bg-gradient-to-br from-slate-900 via-slate-850 to-slate-900 rounded-2xl border border-slate-700/60 p-6 text-white shadow-xl shadow-slate-950/20">
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 pb-5 border-b border-slate-700/60">
         <div>
-          <div className="flex items-center gap-2 mb-1.5">
+          <div className="flex flex-wrap items-center gap-2 mb-1.5">
             <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-brand-500/20 text-brand-300 border border-brand-500/40 flex items-center gap-1 uppercase tracking-wider">
               <ShieldCheck className="w-3 h-3 text-brand-400" />
               Multi-Tier Governance Architecture
             </span>
-            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-indigo-500/20 text-indigo-300 border border-indigo-500/40 uppercase tracking-wider">
-              Two-Tier Verification Gate
+            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 uppercase tracking-wider flex items-center gap-1">
+              <Building2 className="w-3 h-3 text-emerald-400" />
+              Project: {project.name} ({project.code})
+            </span>
+            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-slate-500/20 text-slate-300 border border-slate-500/40 uppercase tracking-wider">
+              Structure & Handover Scope • {projectActivities.length} Activities
             </span>
           </div>
           <h2 className="text-xl font-black text-white tracking-tight flex items-center gap-2">
-            <span>Activity Validation & Verification Hub</span>
+            <span>{project.name} — Structure & Handover Governance</span>
           </h2>
           <p className="text-xs text-slate-300 mt-1 max-w-3xl leading-relaxed">
-            Every role owns distinct activities. Geotechnical & excavation activities validated by{' '}
+            This gate covers substructure, superstructure, and handover milestones only. Geotechnical and excavation work within the structural scope validated by{' '}
             <span className="font-semibold text-teal-300">Site Engineer</span> are forwarded to{' '}
-            <span className="font-semibold text-blue-300">Admin</span> for final verification. Field operations validated by{' '}
+            <span className="font-semibold text-amber-300">Admin</span> for final verification. Structural milestones validated by{' '}
             <span className="font-semibold text-emerald-300">Site Manager</span> are verified by the{' '}
-            <span className="font-semibold text-indigo-300">Project Manager</span>. Finally,{' '}
+            <span className="font-semibold text-slate-200">Project Manager</span>. Finally,{' '}
             <span className="font-semibold text-purple-300">Top Management</span> maintains executive visibility.
           </p>
         </div>
@@ -38,9 +42,9 @@ export const RoleBanner: React.FC<{ ctx: PMValidationCtx }> = ({ ctx }) => {
                 : activeRole === 'Site Manager'
                 ? 'bg-emerald-600'
                 : activeRole === 'Admin'
-                ? 'bg-blue-600'
+                ? 'bg-amber-600'
                 : activeRole === 'Project Manager'
-                ? 'bg-indigo-600'
+                ? 'bg-slate-600'
                 : 'bg-purple-600'
             }`}
           >
@@ -122,16 +126,16 @@ export const RoleBanner: React.FC<{ ctx: PMValidationCtx }> = ({ ctx }) => {
             onClick={() => setActiveRole('Admin')}
             className={`p-3 rounded-xl border text-left transition-all ${
               activeRole === 'Admin'
-                ? 'bg-blue-600/20 border-blue-500 shadow-md shadow-blue-950 text-white'
+                ? 'bg-amber-600/20 border-amber-500 shadow-md shadow-amber-950 text-white'
                 : 'bg-slate-800/60 border-slate-700/80 hover:bg-slate-800 text-slate-300'
             }`}
           >
             <div className="flex items-center justify-between mb-1">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-blue-400 flex items-center gap-1">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-amber-400 flex items-center gap-1">
                 <ShieldCheck className="w-3.5 h-3.5" />
                 Admin
               </span>
-              <span className="text-[10px] px-1.5 py-0.2 rounded bg-blue-500/20 text-blue-300 font-extrabold">
+              <span className="text-[10px] px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-300 font-extrabold">
                 Geotech Verifier
               </span>
             </div>
@@ -146,16 +150,16 @@ export const RoleBanner: React.FC<{ ctx: PMValidationCtx }> = ({ ctx }) => {
             onClick={() => setActiveRole('Project Manager')}
             className={`p-3 rounded-xl border text-left transition-all ${
               activeRole === 'Project Manager'
-                ? 'bg-indigo-600/20 border-indigo-500 shadow-md shadow-indigo-950 text-white'
+                ? 'bg-slate-600/20 border-slate-500 shadow-md shadow-slate-950 text-white'
                 : 'bg-slate-800/60 border-slate-700/80 hover:bg-slate-800 text-slate-300'
             }`}
           >
             <div className="flex items-center justify-between mb-1">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-400 flex items-center gap-1">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1">
                 <CheckCheck className="w-3.5 h-3.5" />
                 Project Manager
               </span>
-              <span className="text-[10px] px-1.5 py-0.2 rounded bg-indigo-500/20 text-indigo-300 font-extrabold">
+              <span className="text-[10px] px-1.5 py-0.2 rounded bg-slate-500/20 text-slate-300 font-extrabold">
                 Master Verifier
               </span>
             </div>
@@ -199,7 +203,7 @@ export const RoleBanner: React.FC<{ ctx: PMValidationCtx }> = ({ ctx }) => {
             <p>
               <strong className="text-white">Site Engineer Geotechnical & Excavation Scope:</strong> You validate geotechnical soil investigations, borelog profiles, SPT test records, bulk excavation earthworks, pit shoring, and dewatering. Clicking{' '}
               <span className="text-teal-300 font-bold">Validate (YES)</span> approves Stage 1 and forwards the task directly to{' '}
-              <span className="text-blue-300 font-bold">Admin for Final Verification</span>. The task will{' '}
+              <span className="text-amber-300 font-bold">Admin for Final Verification</span>. The task will{' '}
               <strong className="text-amber-300">ONLY be officially recorded once verified by Admin</strong>.
             </p>
           )}
@@ -207,20 +211,18 @@ export const RoleBanner: React.FC<{ ctx: PMValidationCtx }> = ({ ctx }) => {
             <p>
               <strong className="text-white">Site Manager Scope:</strong> You can only validate Site Manager activities (masonry, finishes, MEP). Clicking{' '}
               <span className="text-emerald-300 font-bold">Validate (YES)</span> approves Stage 1 and forwards the activity into the{' '}
-              <span className="text-indigo-300 font-bold">Awaiting PM Verification</span> queue. It will{' '}
+              <span className="text-slate-300 font-bold">Awaiting PM Verification</span> queue. It will{' '}
               <strong className="text-amber-300">ONLY be recorded once verified by the Project Manager</strong>.
             </p>
           )}
           {activeRole === 'Admin' && (
             <p>
-              <strong className="text-white">Admin Scope & Final Verification Gate:</strong> (1) You validate administrative statutory tasks (surveys, licenses, handover) which forward to PM. (2){' '}
-              <strong className="text-blue-300">Final Verification Authority:</strong> You perform Stage 2 Final Verification on Site Engineer's Geotechnical & Excavation activities in the verification queue below—countersigning and officially recording them into the master project ledger.
+              <strong className="text-white">Admin Scope & Final Verification Gate:</strong> You review handover clearances and countersign substructure inspection records forwarded by the Site Engineer, then officially record approved milestones in the project ledger.
             </p>
           )}
           {activeRole === 'Project Manager' && (
             <p>
-              <strong className="text-white">Project Manager Dual Authority:</strong> (1) You directly validate core structural milestones (slabs, columns, cranes) which become recorded immediately. (2){' '}
-              <strong className="text-indigo-300">Mandatory Countersign Gate:</strong> You verify and countersign activities submitted by Site Manager and Admin in the queue below—only upon your verification are they officially recorded.
+              <strong className="text-white">Project Manager Dual Authority:</strong> You validate structural milestones directly and countersign Site Manager or Admin approvals for structural and handover work. Approved items are recorded only after the required verification.
             </p>
           )}
           {activeRole === 'Top Management' && (

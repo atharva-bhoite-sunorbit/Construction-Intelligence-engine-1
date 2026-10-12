@@ -11,6 +11,59 @@ from backend.app.models.all_models import (
 )
 from backend.app.services.dependency_engine import DependencyEngine
 
+
+def get_baseline_recommendation_context(activity: Activity, today: Optional[date] = None) -> Dict[str, Any]:
+    """Compare an activity's current progress and live forecast with its imported baseline window."""
+    current_date = today or date.today()
+    baseline_start = activity.baseline_start_date
+    baseline_end = activity.baseline_end_date
+    factors: List[str] = []
+    actions: List[str] = []
+
+    if not baseline_start or not baseline_end:
+        factors.append("No dated PDF baseline is available for this activity; its live dates are shown as the current plan, not as baseline variance.")
+        return {"factors": factors, "actions": actions, "baseline_variance_days": None}
+
+    variance_days = (activity.end_date - baseline_end).days if activity.end_date else 0
+    task_reference = f"PDF task {activity.baseline_task_id}" if activity.baseline_task_id is not None else activity.name
+    factors.append(
+        f"{task_reference} baseline window is {baseline_start.isoformat()} to {baseline_end.isoformat()}."
+    )
+
+    if variance_days > 0:
+        factors.append(
+            f"The current live finish is {variance_days} calendar days later than the baseline finish ({activity.end_date.isoformat()})."
+        )
+        actions.append(
+            f"Agree a dated recovery plan to protect the {baseline_end.isoformat()} baseline finish and confirm impacts to linked follow-on work."
+        )
+    elif variance_days < 0:
+        factors.append(
+            f"The current live finish is {abs(variance_days)} calendar days earlier than the baseline finish."
+        )
+
+    progress = max(0.0, min(100.0, float(activity.progress_percent or 0)))
+    if current_date > baseline_end and progress < 100:
+        overdue_days = (current_date - baseline_end).days
+        factors.append(
+            f"The baseline finish passed {overdue_days} days ago with {progress:g}% progress recorded."
+        )
+        actions.append(
+            "Reconfirm the remaining quantity, work-front access, crew and materials, then set a manager-approved recovery finish against the baseline milestone."
+        )
+
+    if activity.actual_start_date and activity.actual_start_date > baseline_start:
+        start_variance = (activity.actual_start_date - baseline_start).days
+        factors.append(f"Actual work started {start_variance} days after its baseline start.")
+        actions.append("Confirm the late-start cause and protect the remaining baseline duration with a resourced recovery plan.")
+
+    return {
+        "factors": factors,
+        "actions": actions,
+        "baseline_variance_days": variance_days,
+    }
+
+
 class AIService:
     @staticmethod
     def generate_recommendations_for_project(db: Session, project_id: int) -> List[AIRecommendation]:
@@ -39,6 +92,11 @@ class AIService:
             act = db.query(Activity).filter(Activity.id == pred.activity_id).first()
             if not act or act.status == "COMPLETED":
                 continue
+            if any(
+                (value or "").strip().lower() == "summary header"
+                for value in (act.category, act.subcategory, act.work_package)
+            ):
+                continue
 
             # Check if active recommendation already exists
             existing = (
@@ -50,10 +108,6 @@ class AIService:
                 )
                 .first()
             )
-            if existing:
-                created_recs.append(existing)
-                continue
-
             # Identify contributing factors from data
             factors = []
             actions = []
@@ -90,17 +144,79 @@ class AIService:
                 factors.append("Activity resides on the Project Critical Path (Zero Total Float).")
                 actions.append("Implement daily shift briefings and dual-shift execution if feasible to prevent overall completion slippage.")
 
+            baseline_context = get_baseline_recommendation_context(act)
+            recommendation_label = (
+                "Baseline schedule risk"
+                if act.baseline_start_date and act.baseline_end_date
+                else "Schedule risk"
+            )
+            factors.extend(baseline_context["factors"])
+            actions.extend(baseline_context["actions"])
+
+            dependencies = (
+                db.query(ActivityDependency)
+                .filter(
+                    ActivityDependency.project_id == project_id,
+                    ActivityDependency.predecessor_id == act.id,
+                )
+                .all()
+            )
+            successor_ids = [dependency.successor_id for dependency in dependencies]
+            successors = (
+                db.query(Activity)
+                .filter(Activity.id.in_(successor_ids))
+                .all()
+                if successor_ids
+                else []
+            )
+            successors = [
+                successor
+                for successor in successors
+                if not any(
+                    (value or "").strip().lower() == "summary header"
+                    for value in (successor.category, successor.subcategory, successor.work_package)
+                )
+            ]
+            successors.sort(
+                key=lambda successor: (
+                    successor.baseline_start_date or successor.start_date or date.max,
+                    successor.baseline_task_id
+                    if successor.baseline_task_id is not None
+                    else successor.sort_order or successor.id,
+                )
+            )
+            for successor in successors[:3]:
+                planned_start = successor.baseline_start_date or successor.start_date
+                date_basis = "baseline" if successor.baseline_start_date else "live plan"
+                factors.append(
+                    f"Linked follow-on activity '{successor.name}' is planned to start {planned_start.isoformat()} ({date_basis})."
+                )
+            if successors:
+                actions.append(
+                    "Coordinate inspection, sign-off, and handover of this workfront with the linked follow-on activities before their planned start dates."
+                )
+
             explanation = (
                 f"The activity '{act.name}' is currently at {pred.risk_level} delay risk with a predicted delay "
                 f"of {pred.predicted_delay_days} days (Delay Probability: {int(pred.delay_probability * 100)}%). "
-                f"Root drivers: {'; '.join(factors)}. Downstream activities will inherit slippage if unaddressed."
+                f"Schedule context: {baseline_context['factors'][0]} "
+                f"Root drivers: {'; '.join(factors)}. Any downstream slippage is evaluated against the recorded dependency links and baseline windows."
             )
+
+            if existing:
+                existing.risk_level = pred.risk_level
+                existing.issue_summary = f"{recommendation_label}: {act.name} ({pred.predicted_delay_days}d predicted slip)"
+                existing.contributing_factors_json = json.dumps(factors)
+                existing.ai_explanation = explanation
+                existing.recommended_actions_json = json.dumps(actions)
+                created_recs.append(existing)
+                continue
 
             rec = AIRecommendation(
                 project_id=project_id,
                 activity_id=act.id,
                 risk_level=pred.risk_level,
-                issue_summary=f"Delay Risk on {act.name} ({pred.predicted_delay_days}d predicted slip)",
+                issue_summary=f"{recommendation_label}: {act.name} ({pred.predicted_delay_days}d predicted slip)",
                 contributing_factors_json=json.dumps(factors),
                 ai_explanation=explanation,
                 recommended_actions_json=json.dumps(actions),

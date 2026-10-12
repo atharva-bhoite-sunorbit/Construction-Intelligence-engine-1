@@ -29,7 +29,7 @@ export const CalculationsTab: React.FC<{ ctx: GeotechReportCtx }> = ({ ctx }) =>
                 <SourceBadge sourceType="REPORT" page={calc.source_page} />
               </div>
 
-              <div className="p-3 bg-blue-50/50 rounded-xl border border-blue-200 font-mono text-xs text-blue-900">
+              <div className="p-3 bg-amber-50/50 rounded-xl border border-amber-200 font-mono text-xs text-amber-900">
                 Formula: {calc.formula}
               </div>
 

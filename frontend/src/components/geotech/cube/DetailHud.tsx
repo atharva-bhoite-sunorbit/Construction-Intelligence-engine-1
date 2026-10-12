@@ -80,7 +80,7 @@ export const DetailHud: React.FC<{ ctx: CubeCtx }> = ({ ctx }) => {
             <span className="text-[10px] uppercase font-semibold text-slate-500 block">
               Water Horizon
             </span>
-            <div className="text-sm font-black text-cyan-400 mt-0.5 font-mono truncate" title={currentLayer.specs.permeability}>
+            <div className="text-sm font-black text-teal-400 mt-0.5 font-mono truncate" title={currentLayer.specs.permeability}>
               {currentLayer.specs.permeability}
             </div>
           </div>

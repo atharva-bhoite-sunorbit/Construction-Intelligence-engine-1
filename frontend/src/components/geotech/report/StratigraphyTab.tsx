@@ -26,7 +26,7 @@ export const StratigraphyTab: React.FC<{ ctx: GeotechReportCtx }> = ({ ctx }) =>
             <div className="flex items-center gap-3">
               <div
                 className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold text-sm text-white ${
-                  layer.material_type === 'Rock' ? 'bg-cyan-600' : 'bg-amber-600'
+                  layer.material_type === 'Rock' ? 'bg-teal-600' : 'bg-amber-600'
                 }`}
               >
                 {idx + 1}

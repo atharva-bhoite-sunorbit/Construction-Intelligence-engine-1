@@ -23,7 +23,7 @@ export const RiskIntelligenceView: React.FC<RiskIntelligenceViewProps> = ({ risk
       case 'MEDIUM':
         return 'bg-amber-100 text-amber-800 border-amber-300';
       default:
-        return 'bg-blue-100 text-blue-800 border-blue-300';
+        return 'bg-amber-100 text-amber-800 border-amber-300';
     }
   };
 

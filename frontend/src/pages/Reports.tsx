@@ -1,17 +1,19 @@
 import React, { useState, useEffect } from 'react';
 import { FileSpreadsheet, Download, FileText, Calendar, AlertTriangle, CheckCircle2, TrendingDown } from 'lucide-react';
-import { Project, AIManagementSummary } from '../types';
+import { Project, AIManagementSummary, User } from '../types';
 import { apiClient } from '../api/client';
 
 interface ReportsPageProps {
   project: Project;
+  currentUser?: User | null;
 }
 
-export const ReportsPage: React.FC<ReportsPageProps> = ({ project }) => {
+export const ReportsPage: React.FC<ReportsPageProps> = ({ project, currentUser }) => {
   const [summary, setSummary] = useState<AIManagementSummary | null>(null);
   const [dailyReport, setDailyReport] = useState<any>(null);
   const [delayReport, setDelayReport] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const isAdmin = currentUser?.role === 'Admin';
 
   const fetchReports = async () => {
     setLoading(true);
@@ -19,7 +21,7 @@ export const ReportsPage: React.FC<ReportsPageProps> = ({ project }) => {
       const [sumRes, dailyRes, delayRes] = await Promise.all([
         apiClient.getManagementSummary(project.id),
         apiClient.getDailyReport(project.id),
-        apiClient.getDelayReport(project.id),
+        isAdmin ? apiClient.getDelayReport(project.id) : Promise.resolve(null),
       ]);
       setSummary(sumRes);
       setDailyReport(dailyRes);
@@ -33,7 +35,7 @@ export const ReportsPage: React.FC<ReportsPageProps> = ({ project }) => {
 
   useEffect(() => {
     fetchReports();
-  }, [project.id]);
+  }, [project.id, isAdmin]);
 
   const handleDownloadExcel = () => {
     window.open(apiClient.exportExcelUrl(project.id), '_blank');
@@ -167,7 +169,7 @@ export const ReportsPage: React.FC<ReportsPageProps> = ({ project }) => {
         </div>
 
         {/* Delay Report */}
-        <div className="p-5 rounded-2xl bg-white border border-slate-200 shadow-xs border border-slate-200 space-y-4 text-xs">
+        {isAdmin && <div className="p-5 rounded-2xl bg-white border border-slate-200 shadow-xs border border-slate-200 space-y-4 text-xs">
           <div className="flex items-center justify-between">
             <h4 className="font-bold text-slate-900 uppercase tracking-wider">Delayed Activities Report</h4>
             <span className="text-rose-400 font-mono font-bold">
@@ -187,14 +189,14 @@ export const ReportsPage: React.FC<ReportsPageProps> = ({ project }) => {
                   <div className="text-[10px] text-slate-500">
                     {item.is_critical ? 'Critical Path' : `Float: ${item.total_float}d`}
                   </div>
+                  </div>
                 </div>
-              </div>
             ))}
             {(!delayReport?.activities || delayReport.activities.length === 0) && (
               <div className="py-6 text-center text-slate-500">No activities currently delayed.</div>
             )}
           </div>
-        </div>
+        </div>}
       </div>
     </div>
   );

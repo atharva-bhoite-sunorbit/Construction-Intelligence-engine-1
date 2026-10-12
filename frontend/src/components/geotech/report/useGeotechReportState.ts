@@ -5,11 +5,13 @@ import { DEFAULT_MACHINERY_LIST } from './defaultMachinery';
 
 interface GeotechReportStateArgs {
   project?: Project;
+  onNavigateToSchedule?: () => void;
   onRefreshData?: () => void;
 }
 
 export const useGeotechReportState = ({
   project,
+  onNavigateToSchedule,
   onRefreshData,
 }: GeotechReportStateArgs) => {
   const [reports, setReports] = useState<any[]>([]);
@@ -249,7 +251,7 @@ export const useGeotechReportState = ({
           category: s.material_type || (isRock ? 'Hard Rock' : 'Dense Soil'),
           is_rock: isRock,
           description: s.description || `${s.layer_name} stratum logged in subsurface investigation.`,
-          color: isRock ? '#0891b2' : '#ea580c',
+          color: isRock ? '#0f766e' : '#ea580c',
           top_m: top,
           bottom_m: bot,
           thickness_m: thk,

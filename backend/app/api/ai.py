@@ -15,6 +15,39 @@ from backend.app.utils.security import get_current_user_optional
 
 router = APIRouter(tags=["AI Reasoning & Assistant"])
 
+
+def _recommendation_response(rec: AIRecommendation, activity: Optional[Activity]) -> dict:
+    baseline_variance = (
+        (activity.end_date - activity.baseline_end_date).days
+        if activity and activity.end_date and activity.baseline_end_date
+        else None
+    )
+    return {
+        "id": rec.id,
+        "project_id": rec.project_id,
+        "activity_id": rec.activity_id,
+        "activity_name": activity.name if activity else None,
+        "baseline_task_id": activity.baseline_task_id if activity else None,
+        "phase": activity.phase if activity else None,
+        "work_package": activity.work_package if activity else None,
+        "tower": activity.tower if activity else None,
+        "floor": activity.floor if activity else None,
+        "baseline_start_date": activity.baseline_start_date if activity else None,
+        "baseline_end_date": activity.baseline_end_date if activity else None,
+        "live_start_date": activity.start_date if activity else None,
+        "live_end_date": activity.end_date if activity else None,
+        "baseline_variance_days": baseline_variance,
+        "risk_level": rec.risk_level,
+        "issue_summary": rec.issue_summary,
+        "contributing_factors": json.loads(rec.contributing_factors_json) if rec.contributing_factors_json else [],
+        "ai_explanation": rec.ai_explanation,
+        "recommended_actions": json.loads(rec.recommended_actions_json) if rec.recommended_actions_json else [],
+        "status": rec.status,
+        "manager_notes": rec.manager_notes,
+        "created_at": rec.created_at,
+    }
+
+
 @router.get("/api/projects/{project_id}/ai/recommendations", response_model=List[AIRecommendationResponse])
 def get_ai_recommendations(project_id: int, db: Session = Depends(get_db)):
     """Fetches AI recommendations for manager review."""
@@ -24,29 +57,11 @@ def get_ai_recommendations(project_id: int, db: Session = Depends(get_db)):
         .order_by(AIRecommendation.created_at.desc())
         .all()
     )
-    act_map = {a.id: a.name for a in db.query(Activity).filter(Activity.project_id == project_id).all()}
-
-    results = []
-    for r in recs:
-        factors = json.loads(r.contributing_factors_json) if r.contributing_factors_json else []
-        actions = json.loads(r.recommended_actions_json) if r.recommended_actions_json else []
-
-        results.append({
-            "id": r.id,
-            "project_id": r.project_id,
-            "activity_id": r.activity_id,
-            "activity_name": act_map.get(r.activity_id),
-            "risk_level": r.risk_level,
-            "issue_summary": r.issue_summary,
-            "contributing_factors": factors,
-            "ai_explanation": r.ai_explanation,
-            "recommended_actions": actions,
-            "status": r.status,
-            "manager_notes": r.manager_notes,
-            "created_at": r.created_at
-        })
-
-    return results
+    act_map = {
+        activity.id: activity
+        for activity in db.query(Activity).filter(Activity.project_id == project_id).all()
+    }
+    return [_recommendation_response(rec, act_map.get(rec.activity_id)) for rec in recs]
 
 @router.post("/api/ai/recommendations/{id}/action", response_model=AIRecommendationResponse)
 def handle_recommendation_action(
@@ -85,20 +100,7 @@ def handle_recommendation_action(
 
     act = db.query(Activity).filter(Activity.id == rec.activity_id).first() if rec.activity_id else None
 
-    return {
-        "id": rec.id,
-        "project_id": rec.project_id,
-        "activity_id": rec.activity_id,
-        "activity_name": act.name if act else None,
-        "risk_level": rec.risk_level,
-        "issue_summary": rec.issue_summary,
-        "contributing_factors": json.loads(rec.contributing_factors_json) if rec.contributing_factors_json else [],
-        "ai_explanation": rec.ai_explanation,
-        "recommended_actions": json.loads(rec.recommended_actions_json) if rec.recommended_actions_json else [],
-        "status": rec.status,
-        "manager_notes": rec.manager_notes,
-        "created_at": rec.created_at
-    }
+    return _recommendation_response(rec, act)
 
 @router.post("/api/projects/{project_id}/ai/summary", response_model=AIManagementSummaryResponse)
 def generate_project_summary(project_id: int, db: Session = Depends(get_db)):

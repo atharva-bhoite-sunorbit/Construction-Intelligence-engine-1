@@ -104,9 +104,9 @@ export const IsometricSvgScene: React.FC<{ ctx: CubeCtx }> = ({ ctx }) => {
           </linearGradient>
 
           <linearGradient id={`${uid}-grad-watertable`} x1="0%" y1="0%" x2="100%" y2="0%">
-            <stop offset="0%" stopColor="#06b6d4" stopOpacity="0.65" />
-            <stop offset="50%" stopColor="#38bdf8" stopOpacity="0.85" />
-            <stop offset="100%" stopColor="#0284c7" stopOpacity="0.65" />
+            <stop offset="0%" stopColor="#0f766e" stopOpacity="0.65" />
+            <stop offset="50%" stopColor="#14b8a6" stopOpacity="0.85" />
+            <stop offset="100%" stopColor="#0d9488" stopOpacity="0.65" />
           </linearGradient>
         </defs>
 
@@ -212,7 +212,7 @@ export const IsometricSvgScene: React.FC<{ ctx: CubeCtx }> = ({ ctx }) => {
                     <circle cx="0" cy="12" r="3" fill="#71717a" />
                     <circle cx="16" cy="12" r="3" fill="#71717a" />
                     <rect x="-18" y="-6" width="36" height="15" rx="3" fill="#f59e0b" stroke="#d97706" strokeWidth="1" />
-                    <rect x="-14" y="-4" width="14" height="9" rx="1.5" fill="#38bdf8" opacity="0.75" />
+                    <rect x="-14" y="-4" width="14" height="9" rx="1.5" fill="#cbd5e1" opacity="0.75" />
                     <path d="M12,-2 L32,-16 L48,-6 L56,4" stroke="#d97706" strokeWidth="4" strokeLinecap="round" fill="none" />
                     <polygon points="54,2 62,6 58,12 52,6" fill="#18181b" />
                   </g>
@@ -268,7 +268,7 @@ export const IsometricSvgScene: React.FC<{ ctx: CubeCtx }> = ({ ctx }) => {
             >
               {/* Exploded alignment guide dashed lines */}
               {explodeFactor > 0.1 && index > 0 && (
-                <g stroke="#38bdf8" strokeWidth="1" strokeDasharray="3,3" opacity="0.4">
+                <g stroke="#94a3b8" strokeWidth="1" strokeDasharray="3,3" opacity="0.4">
                   <line x1={tl.x} y1={tl.y} x2={tl.x} y2={tl.y - explodeFactor * 16} />
                   <line x1={tf.x} y1={tf.y} x2={tf.x} y2={tf.y - explodeFactor * 16} />
                   <line x1={tr.x} y1={tr.y} x2={tr.x} y2={tr.y - explodeFactor * 16} />
@@ -410,7 +410,7 @@ export const IsometricSvgScene: React.FC<{ ctx: CubeCtx }> = ({ ctx }) => {
                   <polygon
                     points={`${wtB.x},${wtB.y} ${wtR.x},${wtR.y} ${wtF.x},${wtF.y} ${wtL.x},${wtL.y}`}
                     fill={`url(#${uid}-grad-watertable)`}
-                    stroke="#38bdf8"
+                    stroke="#14b8a6"
                     strokeWidth="2"
                     strokeDasharray="6,4"
                     className="animate-pulse"
@@ -420,13 +420,13 @@ export const IsometricSvgScene: React.FC<{ ctx: CubeCtx }> = ({ ctx }) => {
                   <path
                     d={`M${wtL.x},${wtL.y} Q${(wtL.x + wtF.x) / 2},${(wtL.y + wtF.y) / 2 - 4} ${wtF.x},${wtF.y} Q${(wtF.x + wtR.x) / 2},${(wtR.y + wtR.y) / 2 - 4} ${wtR.x},${wtR.y}`}
                     fill="none"
-                    stroke="#e0f2fe"
+                    stroke="#ccfbf1"
                     strokeWidth="1.5"
                   />
 
                   {/* GWT Callout Badge */}
                   <g transform={`translate(${wtR.x + 10}, ${wtR.y - 10})`}>
-                    <rect x="0" y="0" width="145" height="22" rx="4" fill="#0369a1" stroke="#38bdf8" strokeWidth="1" />
+                    <rect x="0" y="0" width="145" height="22" rx="4" fill="#0f766e" stroke="#14b8a6" strokeWidth="1" />
                     <text x="72" y="15" fill="#ffffff" fontSize="9.5" fontWeight="bold" textAnchor="middle" fontFamily="monospace">
                       🌊 GWT Horizon @ ~{waterTableDepth != null ? waterTableDepth.toFixed(1) : '3.8'}m
                     </text>

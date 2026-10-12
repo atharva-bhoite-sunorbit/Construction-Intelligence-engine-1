@@ -4,25 +4,93 @@
 
 @layer base {
   :root {
-    --bg-primary: #ffffff;
-    --bg-canvas: #f8fafc;
+    --bg-primary: #f8fafc;
+    --bg-canvas: #f1f5f9;
     --bg-card: #ffffff;
+    --bg-panel: rgba(255, 255, 255, 0.95);
     --border-color: #e2e8f0;
     --text-primary: #0f172a;
-    --text-secondary: #64748b;
+    --text-secondary: #334155;
+    --text-muted: #64748b;
+    --shadow-soft: 0 4px 12px -2px rgba(15, 23, 42, 0.06), 0 2px 6px -1px rgba(15, 23, 42, 0.03);
+    --shadow-card: 0 1px 3px 0 rgba(15, 23, 42, 0.06), 0 1px 2px -1px rgba(15, 23, 42, 0.04);
+  }
+
+  html {
+    color-scheme: light;
+    scroll-behavior: smooth;
   }
 
   body {
     background-color: #f8fafc;
-    color: #0f172a;
-    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+    background-image: 
+      radial-gradient(at 0% 0%, rgba(226, 232, 240, 0.5) 0px, transparent 50%),
+      radial-gradient(at 100% 100%, rgba(241, 245, 249, 0.8) 0px, transparent 50%);
+    color: var(--text-primary);
+    font-family: 'Plus Jakarta Sans', Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-size: 15px;
+    line-height: 1.55;
+    letter-spacing: -0.011em;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
+    text-rendering: optimizeLegibility;
     overflow-x: hidden;
+  }
+
+  #root {
+    min-height: 100vh;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    letter-spacing: -0.025em;
+    color: var(--text-primary);
+    font-weight: 700;
+  }
+
+  button, input, select, textarea {
+    font-family: inherit;
+    letter-spacing: -0.01em;
+  }
+
+  /* Monospace numbers and codes */
+  code, pre, .font-mono {
+    font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, monospace;
+    font-feature-settings: 'zero' 1;
   }
 }
 
-/* Custom scrollbars - Light & Clean */
+/* Numeric alignment utility for enterprise metrics, tables and dates */
+.tabular-nums {
+  font-variant-numeric: tabular-nums lining-nums;
+}
+
+/* Typography refinements */
+.text-xs {
+  font-size: 0.8125rem;   /* 13px */
+  line-height: 1.25rem;   /* 20px */
+}
+
+.text-sm {
+  font-size: 0.875rem;    /* 14px */
+  line-height: 1.25rem;   /* 20px */
+}
+
+.text-base {
+  font-size: 1rem;        /* 16px */
+  line-height: 1.5rem;    /* 24px */
+}
+
+/* Consistent keyboard focus */
+@layer base {
+  :focus-visible {
+    outline: 2px solid #b45309;
+    outline-offset: 2px;
+    border-radius: 0.375rem;
+  }
+}
+
+/* Custom scrollbars */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
@@ -34,7 +102,7 @@
 
 ::-webkit-scrollbar-thumb {
   background: #cbd5e1;
-  border-radius: 3px;
+  border-radius: 9999px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
@@ -43,28 +111,46 @@
 
 /* Enterprise Surface Utilities */
 .glass-panel {
-  background: rgba(255, 255, 255, 0.95);
+  background: var(--bg-panel);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
-  border: 1px solid #e2e8f0;
-  box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.05);
+  border: 1px solid rgba(226, 232, 240, 0.9);
+  box-shadow: var(--shadow-soft);
 }
 
-.glass-card {
+.enterprise-card {
   background: #ffffff;
   border: 1px solid #e2e8f0;
-  box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.04);
+  border-radius: 0.75rem;
+  box-shadow: 0 1px 2px 0 rgba(15, 23, 42, 0.04);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
-.card-white {
-  background: #ffffff;
-  border: 1px solid #e2e8f0;
-  box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.05);
+.enterprise-card:hover {
+  border-color: #cbd5e1;
+  box-shadow: 0 4px 6px -1px rgba(15, 23, 42, 0.06), 0 2px 4px -2px rgba(15, 23, 42, 0.04);
 }
 
-/* Gantt grid lines for white background */
+.enterprise-header {
+  background-color: #0f172a;
+  background-image: radial-gradient(at 100% 0%, rgba(148, 163, 184, 0.12) 0px, transparent 65%);
+  border: 1px solid #1e293b;
+  color: #ffffff;
+  border-radius: 0.875rem;
+}
+
 .gantt-grid {
   background-size: 40px 100%;
-  background-image: linear-gradient(to right, #e2e8f0 1px, transparent 1px);
+  background-image: linear-gradient(to right, rgba(226, 232, 240, 0.8) 1px, transparent 1px);
 }
 
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

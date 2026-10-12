@@ -2,7 +2,7 @@ import { Lock, BarChart3, Award } from 'lucide-react';
 import { PMValidationCtx } from './usePMValidationState';
 
 export const TopMgmtSubNav: React.FC<{ ctx: PMValidationCtx }> = ({ ctx }) => {
-  const { activities, topMgmtSubTab, setTopMgmtSubTab } = ctx;
+  const { topMgmtSubTab, setTopMgmtSubTab, projectActivities } = ctx;
   return (
     <div className="flex flex-wrap items-center justify-between gap-3 p-3 bg-white rounded-xl border border-slate-200 shadow-xs">
       <div className="flex items-center gap-1.5">
@@ -29,7 +29,7 @@ export const TopMgmtSubNav: React.FC<{ ctx: PMValidationCtx }> = ({ ctx }) => {
           <Award className="w-3.5 h-3.5" />
           <span>Officially Recorded Registry (PM Verified)</span>
           <span className="px-1.5 py-0.2 rounded-full bg-emerald-100 text-emerald-800 font-extrabold text-[10px]">
-            {activities.filter((a) => a.final_recorded).length}
+            {projectActivities.filter((a) => a.final_recorded).length}
           </span>
         </button>
       </div>

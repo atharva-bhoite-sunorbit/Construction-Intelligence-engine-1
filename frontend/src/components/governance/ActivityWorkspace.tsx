@@ -242,8 +242,8 @@ export const ActivityWorkspace: React.FC<{ ctx: PMValidationCtx }> = ({ ctx }) =
                                       : act.assigned_role === 'Site Manager'
                                       ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
                                       : act.assigned_role === 'Admin'
-                                      ? 'bg-blue-50 text-blue-800 border-blue-300'
-                                      : 'bg-indigo-50 text-indigo-800 border-indigo-300'
+                                      ? 'bg-amber-50 text-amber-800 border-amber-300'
+                                      : 'bg-slate-50 text-slate-800 border-slate-300'
                                   }`}
                                 >
                                   Owner: {isGeotechTask || act.assigned_role === 'Site Engineer' ? 'Site Engineer' : act.assigned_role || 'Site Manager'}
@@ -286,8 +286,8 @@ export const ActivityWorkspace: React.FC<{ ctx: PMValidationCtx }> = ({ ctx }) =
                                   </span>
                                 )}
                                 {act.pm_verification_status === 'VERIFIED' && (
-                                  <span className="px-2 py-0.5 rounded bg-indigo-50 text-indigo-800 border border-indigo-200 flex items-center gap-1 font-semibold">
-                                    <CheckCheck className="w-3 h-3 text-indigo-600" />
+                                  <span className="px-2 py-0.5 rounded bg-slate-50 text-slate-800 border border-slate-200 flex items-center gap-1 font-semibold">
+                                    <CheckCheck className="w-3 h-3 text-slate-600" />
                                     Stage 2 Verified: {act.pm_verified_by || (isGeotechTask ? 'Alexander Vance (Admin)' : 'Marcus Brody (PM)')}
                                   </span>
                                 )}
@@ -297,7 +297,7 @@ export const ActivityWorkspace: React.FC<{ ctx: PMValidationCtx }> = ({ ctx }) =
                                   </span>
                                 )}
                                 {act.pm_verification_notes && (
-                                  <span className="text-indigo-700 italic max-w-md truncate">
+                                  <span className="text-slate-700 italic max-w-md truncate">
                                     "{act.pm_verification_notes}"
                                   </span>
                                 )}
@@ -364,7 +364,7 @@ export const ActivityWorkspace: React.FC<{ ctx: PMValidationCtx }> = ({ ctx }) =
                                     <button
                                       onClick={() => handleValidateYes(act)}
                                       disabled={loadingActivityId === act.id}
-                                      className="px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-extrabold text-xs shadow-sm flex items-center gap-1 transition-all disabled:opacity-50"
+                                      className="px-3 py-1.5 rounded-xl bg-amber-600 hover:bg-amber-700 active:bg-amber-800 text-white font-extrabold text-xs shadow-sm flex items-center gap-1 transition-all disabled:opacity-50"
                                       title="Verify & Countersign: Officially Record in Master Ledger"
                                     >
                                       <CheckCheck className="w-3.5 h-3.5" />
@@ -381,7 +381,7 @@ export const ActivityWorkspace: React.FC<{ ctx: PMValidationCtx }> = ({ ctx }) =
                                     <button
                                       onClick={() => handleValidateYes(act)}
                                       disabled={loadingActivityId === act.id}
-                                      className="px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-sm flex items-center gap-1 transition-all disabled:opacity-50"
+                                      className="px-3 py-1.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs shadow-sm flex items-center gap-1 transition-all disabled:opacity-50"
                                       title="Validate YES (Pass to Project Manager)"
                                     >
                                       <Check className="w-3.5 h-3.5" />

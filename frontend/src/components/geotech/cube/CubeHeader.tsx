@@ -142,12 +142,12 @@ export const CubeHeader: React.FC<{ ctx: CubeCtx }> = ({ ctx }) => {
           onClick={() => setShowWaterTable(!showWaterTable)}
           className={`px-2.5 py-1.5 rounded-xl border text-xs font-semibold flex items-center gap-1.5 transition-all ${
             showWaterTable
-              ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40 shadow-xs'
+              ? 'bg-teal-500/20 text-teal-300 border-teal-500/40 shadow-xs'
               : 'bg-slate-950 text-slate-500 border-slate-800'
           }`}
           title="Toggle Groundwater Table plane"
         >
-          <Waves className="w-3.5 h-3.5 text-cyan-400" />
+          <Waves className="w-3.5 h-3.5 text-teal-400" />
           GWT
         </button>
 

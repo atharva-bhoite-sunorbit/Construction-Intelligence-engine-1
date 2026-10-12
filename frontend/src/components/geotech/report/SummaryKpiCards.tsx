@@ -34,7 +34,7 @@ export const SummaryKpiCards: React.FC<{ ctx: GeotechReportCtx }> = ({ ctx }) =>
         <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block font-mono">
           Groundwater
         </span>
-        <div className="text-lg font-bold text-blue-700 mt-1 font-mono">
+        <div className="text-lg font-bold text-amber-700 mt-1 font-mono">
           {gwData?.observed_depth?.display || 'Not specified'}
         </div>
         <span className="text-[10px] text-slate-500 block">Below Ground Level</span>
@@ -53,13 +53,13 @@ export const SummaryKpiCards: React.FC<{ ctx: GeotechReportCtx }> = ({ ctx }) =>
 
       {/* Hard Rock Depth Range */}
       <div className="bg-white border border-slate-200 rounded-xl p-3 shadow-2xs hover:shadow-xs transition-shadow">
-        <span className="text-[10px] font-bold text-cyan-700 uppercase tracking-wider block font-mono">
+        <span className="text-[10px] font-bold text-teal-700 uppercase tracking-wider block font-mono">
           Hard Rock
         </span>
-        <div className="text-lg font-bold text-cyan-900 mt-1 font-mono">
+        <div className="text-lg font-bold text-teal-900 mt-1 font-mono">
           {hrRange}
         </div>
-        <span className="text-[10px] text-cyan-700/80 block truncate">
+        <span className="text-[10px] text-teal-700/80 block truncate">
           {rockData?.rock_type?.display || 'Bedrock formation'}
         </span>
       </div>

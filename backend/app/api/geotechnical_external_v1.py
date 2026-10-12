@@ -10,6 +10,7 @@ from __future__ import annotations
 import io
 import time
 import json
+import re
 import secrets
 import datetime
 from typing import Any, Dict, List, Optional
@@ -38,7 +39,10 @@ from backend.app.services.geotech_auth_service import (
     log_geotech_api_audit
 )
 from backend.app.services.geotechnical_service import (
-    extract_text_from_file, analyze_geotechnical_report
+    SUPPORTED_GEOTECH_REPORT_EXTENSIONS,
+    extract_pages_from_file,
+    validate_geotechnical_report_text,
+    analyze_geotechnical_report,
 )
 from backend.app.services.geotech_intel.service import GeotechnicalIntelligenceService
 from backend.app.services.geotech_intel.fields import val, is_found
@@ -51,7 +55,25 @@ router = APIRouter(
 
 # Maximum upload file size: 25 Megabytes
 MAX_FILE_SIZE_BYTES = 25 * 1024 * 1024
-ALLOWED_EXTENSIONS = {".pdf", ".docx", ".xlsx", ".xlsm", ".txt", ".csv"}
+ALLOWED_EXTENSIONS = SUPPORTED_GEOTECH_REPORT_EXTENSIONS
+
+
+def _number_from_report_value(value: Any) -> Optional[float]:
+    """Return a numeric report value only when it represents a single measurement."""
+    value = val(value)
+    if isinstance(value, bool) or value is None:
+        return None
+    if isinstance(value, (int, float)):
+        return float(value)
+    if isinstance(value, str):
+        match = re.fullmatch(
+            r"\s*([+-]?(?:\d+(?:\.\d*)?|\.\d+))\s*(?:m(?:\s*(?:BGL|below ground level|RL))?)?\s*",
+            value,
+            re.IGNORECASE,
+        )
+        if match:
+            return float(match.group(1))
+    return None
 
 
 # ===========================================================================
@@ -149,12 +171,18 @@ def _build_overview_response(report: GeotechnicalReport) -> GeotechReportOvervie
     if report.intelligence_data_json:
         try:
             data = json.loads(report.intelligence_data_json)
-        except Exception:
-            data = {}
+        except json.JSONDecodeError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Stored geotechnical report data is invalid."
+            ) from exc
+        if not isinstance(data, dict):
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Stored geotechnical report data has an invalid structure."
+            )
 
-    project_name = (
-        report.project.name if report.project else "ABC Residential Tower"
-    )
+    project_name = report.project.name if report.project else "Geotechnical Report"
     if "project_information" in data:
         p_info = data["project_information"]
         if isinstance(p_info, dict) and "project_name" in p_info:
@@ -162,93 +190,74 @@ def _build_overview_response(report: GeotechnicalReport) -> GeotechReportOvervie
             if p_val and p_val != "Missing":
                 project_name = p_val
 
-    # Borehole count
-    boreholes_count = 1
+    # Report only boreholes identified in the uploaded document.
+    boreholes_count = 0
     if "boreholes" in data and isinstance(data["boreholes"], list):
-        boreholes_count = max(1, len(data["boreholes"]))
-    elif "stratigraphy" in data and isinstance(data["stratigraphy"], dict):
-        layers = data["stratigraphy"].get("layers", [])
-        if layers:
-            boreholes_count = 6
+        boreholes_count = len(data["boreholes"])
 
     # Maximum depth
-    max_depth = 30.0
+    max_depth = None
     if "investigation_information" in data:
         inv = data["investigation_information"]
-        if isinstance(inv, dict) and "max_depth" in inv:
-            md_val = val(inv["max_depth"])
-            if md_val and isinstance(md_val, (int, float)):
+        if isinstance(inv, dict):
+            md_val = val(inv.get("maximum_depth_m", inv.get("max_depth")))
+            if isinstance(md_val, (int, float)):
                 max_depth = float(md_val)
     if report.raw_text:
-        import re
         m_dep = re.search(r"(?:terminated\s+at|exploration\s+depth\s*[:=]|max(?:imum)?\s+depth\s*[:=])\s*(\d+(?:\.\d+)?)\s*m", report.raw_text, re.I)
         if m_dep:
             max_depth = float(m_dep.group(1))
-        elif report.target_depth_m and report.target_depth_m > 15:
-            max_depth = report.target_depth_m
 
     # Groundwater depth
-    gw_level = 8.4
-    if "groundwater_analysis" in data:
-        gw = data["groundwater_analysis"]
-        if isinstance(gw, dict) and "water_table_depth" in gw:
-            gw_val = val(gw["water_table_depth"])
-            if gw_val and isinstance(gw_val, (int, float)):
-                gw_level = float(gw_val)
-    if report.raw_text:
-        import re
-        m_gw = re.search(r"groundwater\s+(?:encountered\s+at|table\s*(?:depth)?\s*[:=]?)\s*(\d+(?:\.\d+)?)\s*m", report.raw_text, re.I)
-        if m_gw:
-            gw_level = float(m_gw.group(1))
-        elif report.water_table_depth_m and report.water_table_depth_m != 2.0:
-            gw_level = report.water_table_depth_m
-    elif report.water_table_depth_m:
+    groundwater = data.get("groundwater_analysis")
+    gw_level = None
+    if isinstance(groundwater, dict):
+        gw_level = _number_from_report_value(
+            groundwater.get("observed_depth", groundwater.get("groundwater_depth"))
+        )
+    if gw_level is None and report.water_table_depth_m is not None:
         gw_level = report.water_table_depth_m
 
     # Soil summary
-    top_layer = "Fill"
-    major_soil = report.primary_rock_type or "Dense Sand"
-    rock_depth = 21.5
+    top_layer = "Not specified in report"
+    major_soil = report.primary_rock_type or "Not specified in report"
+    rock_depth = None
 
-    if "stratigraphy" in data and isinstance(data["stratigraphy"], dict):
-        layers = data["stratigraphy"].get("layers", [])
-        if layers and len(layers) > 0:
-            top_layer = layers[0].get("soil_type", "Fill")
-            if len(layers) > 1:
-                major_soil = layers[1].get("soil_type", major_soil)
+    layers = data.get("stratigraphy")
+    if isinstance(layers, list):
+        valid_layers = [layer for layer in layers if isinstance(layer, dict)]
+        if valid_layers:
+            first_layer = valid_layers[0]
+            top_layer = (
+                first_layer.get("soil_type")
+                or first_layer.get("layer_name")
+                or first_layer.get("soil_description")
+                or top_layer
+            )
+            if len(valid_layers) > 1:
+                second_layer = valid_layers[1]
+                major_soil = (
+                    second_layer.get("soil_type")
+                    or second_layer.get("layer_name")
+                    or second_layer.get("soil_description")
+                    or major_soil
+                )
 
     # Alerts
     alerts: List[GeotechAlertItem] = []
     if "risks" in data and isinstance(data["risks"], list):
         for r in data["risks"]:
             if isinstance(r, dict):
+                title = r.get("risk_title") or r.get("title") or "Geotechnical Risk"
+                description = r.get("reason") or r.get("description") or r.get("flag") or ""
                 alerts.append(
                     GeotechAlertItem(
                         type=r.get("category", "geotechnical").lower(),
                         severity=r.get("severity", "medium").lower(),
-                        message=r.get("title", "Geotechnical Risk") + ": " + r.get("description", ""),
-                        mitigation=r.get("recommendation")
+                        message=f"{title}: {description}".rstrip(": "),
+                        mitigation=r.get("recommended_action") or r.get("recommendation")
                     )
                 )
-
-    if not alerts:
-        alerts.append(
-            GeotechAlertItem(
-                type="groundwater",
-                severity="medium",
-                message=f"Groundwater encountered at {gw_level} m.",
-                mitigation="Submersible sump dewatering required for excavation below water table."
-            )
-        )
-        if report.rock_quality_designation_rqd and report.rock_quality_designation_rqd > 60:
-            alerts.append(
-                GeotechAlertItem(
-                    type="excavation",
-                    severity="medium",
-                    message=f"Competent hard rock encountered (RQD {report.rock_quality_designation_rqd}%).",
-                    mitigation="Heavy hydraulic breaker (3000-4500 kg) required for rock breaking."
-                )
-            )
 
     code = report.report_code or f"GT-{report.id + 1000}"
 
@@ -257,8 +266,8 @@ def _build_overview_response(report: GeotechnicalReport) -> GeotechReportOvervie
         project_name=project_name,
         status="analyzed",
         boreholes=boreholes_count,
-        maximum_depth_m=round(max_depth, 1),
-        groundwater_level_m=round(gw_level, 1),
+        maximum_depth_m=round(max_depth, 1) if max_depth is not None else None,
+        groundwater_level_m=round(gw_level, 1) if gw_level is not None else None,
         soil_summary=SoilSummary(
             top_layer=top_layer,
             major_soil=major_soil,
@@ -314,6 +323,19 @@ async def upload_geotechnical_report(
                 detail=f"File exceeds maximum allowed size of {MAX_FILE_SIZE_BYTES // (1024 * 1024)} MB."
             )
 
+        # Extract and validate before provisioning a project or saving a report.
+        try:
+            extracted_pages = extract_pages_from_file(content, filename)
+            extracted_text = "\n".join(
+                page for page in extracted_pages if page and page.strip()
+            )
+            validate_geotechnical_report_text(extracted_text)
+        except ValueError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=str(exc)
+            ) from exc
+
         # Resolve or automatically provision tenant project
         proj = None
         if project_id:
@@ -339,15 +361,6 @@ async def upload_geotechnical_report(
             db.commit()
             db.refresh(proj)
 
-        # Extract text using multi-format parser
-        extracted_text, warnings = extract_text_from_file(content, filename)
-        if not extracted_text or len(extracted_text.strip()) < 10:
-            # Fallback text representation
-            extracted_text = f"Subsurface Soil Investigation & Geotechnical Report for {proj.name}.\n" \
-                             f"Boreholes: BH-01 to BH-06 terminated at 30.0m.\n" \
-                             f"Water table depth: 8.4m.\n" \
-                             f"Soil profile: 0.0-1.5m Fill, 1.5-8.0m Medium Sand, 8.0-21.5m Dense Sand, >21.5m Bedrock."
-
         # Process through Geotechnical Intelligence Service
         payload = GeotechnicalIntelligenceService.process_and_save_report(
             db=db,
@@ -355,7 +368,8 @@ async def upload_geotechnical_report(
             content=content,
             raw_text=extracted_text,
             filename=filename,
-            params={"report_title": report_title or f"Geotechnical Report - {proj.name}"}
+            params={"report_title": report_title or f"Geotechnical Report - {proj.name}"},
+            extracted_pages=extracted_pages,
         )
 
         # Locate saved DB row and assign tenant ID + monotonic report code
@@ -381,6 +395,12 @@ async def upload_geotechnical_report(
     except HTTPException as http_exc:
         _record_audit(request, db, client, http_exc.status_code, error_message=str(http_exc.detail))
         raise http_exc
+    except ValueError as exc:
+        _record_audit(request, db, client, status.HTTP_422_UNPROCESSABLE_ENTITY, error_message=str(exc))
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(exc)
+        ) from exc
     except Exception as exc:
         _record_audit(request, db, client, status.HTTP_500_INTERNAL_SERVER_ERROR, error_message=str(exc))
         raise HTTPException(
@@ -440,67 +460,101 @@ def get_boreholes_data(
         if report.intelligence_data_json:
             try:
                 data = json.loads(report.intelligence_data_json)
-            except Exception:
-                pass
+            except json.JSONDecodeError as exc:
+                raise HTTPException(status_code=500, detail="Stored geotechnical report data is invalid.") from exc
+            if not isinstance(data, dict):
+                raise HTTPException(status_code=500, detail="Stored geotechnical report data has an invalid structure.")
 
         borehole_items: List[BoreholeDetail] = []
         raw_boreholes = data.get("boreholes", [])
 
         if raw_boreholes and isinstance(raw_boreholes, list):
             for idx, bh in enumerate(raw_boreholes):
+                if not isinstance(bh, dict):
+                    continue
                 bh_id = bh.get("id") or bh.get("borehole_id") or f"BH-{idx + 1:02d}"
-                depth = bh.get("depth_m") or bh.get("depth") or report.target_depth_m or 30.0
-                gw = bh.get("water_table_depth_m") or report.water_table_depth_m or 8.4
-                strata_raw = bh.get("strata", [])
-                strata_layers = [
-                    BoreholeLayer(
-                        depth_from_m=s.get("depth_from_m", 0.0),
-                        depth_to_m=s.get("depth_to_m", 2.0),
-                        thickness_m=round(s.get("depth_to_m", 2.0) - s.get("depth_from_m", 0.0), 2),
-                        soil_type=s.get("soil_type", "Sandy Silt"),
-                        spt_n=s.get("spt_n"),
-                        rqd=s.get("rqd"),
-                        ucs_mpa=s.get("ucs_mpa"),
-                        description=s.get("description")
+                depth = _number_from_report_value(
+                    bh.get("borehole_depth_m", bh.get("depth_m", bh.get("depth")))
+                )
+                groundwater = bh.get("groundwater")
+                groundwater_depth = (
+                    groundwater.get("depth_m") if isinstance(groundwater, dict) else None
+                )
+                if groundwater_depth is None:
+                    groundwater_depth = bh.get("groundwater_depth_m", bh.get("water_table_depth_m"))
+
+                strata_raw = (
+                    bh.get("soil_layers")
+                    or bh.get("layers")
+                    or bh.get("strata")
+                    or []
+                )
+                if not isinstance(strata_raw, list):
+                    strata_raw = []
+                strata_layers: List[BoreholeLayer] = []
+                for layer in strata_raw:
+                    if not isinstance(layer, dict):
+                        continue
+                    depth_from = _number_from_report_value(
+                        layer.get("depth_from_m", layer.get("from_m", layer.get("top_depth")))
                     )
-                    for s in strata_raw if isinstance(s, dict)
-                ]
+                    depth_to = _number_from_report_value(
+                        layer.get("depth_to_m", layer.get("to_m", layer.get("bottom_depth")))
+                    )
+                    if depth_from is None or depth_to is None:
+                        continue
+                    material = (
+                        layer.get("soil_type")
+                        or layer.get("material")
+                        or layer.get("soil_description")
+                        or layer.get("description")
+                    )
+                    spt_n = _number_from_report_value(layer.get("spt_n"))
+                    rqd = _number_from_report_value(layer.get("rqd", layer.get("rqd_percent")))
+                    ucs = _number_from_report_value(layer.get("ucs_mpa"))
+                    thickness = _number_from_report_value(
+                        layer.get("thickness_m", layer.get("thickness"))
+                    )
+                    termination_stratum = (
+                        bh.get("termination_stratum") or bh.get("termination_reason")
+                    )
+                    if not termination_stratum and strata_raw and isinstance(strata_raw[-1], dict):
+                        termination_layer = strata_raw[-1]
+                        termination_stratum = (
+                            termination_layer.get("material")
+                            or termination_layer.get("soil_description")
+                            or termination_layer.get("description")
+                        )
+                    strata_layers.append(
+                        BoreholeLayer(
+                            depth_from_m=depth_from,
+                            depth_to_m=depth_to,
+                            thickness_m=round(
+                                thickness if thickness is not None else depth_to - depth_from,
+                                2,
+                            ),
+                            soil_type=str(material) if material else "Not specified in report",
+                            spt_n=int(spt_n) if spt_n is not None else None,
+                            rqd=rqd,
+                            ucs_mpa=ucs,
+                            description=layer.get("description") or layer.get("soil_description"),
+                        )
+                    )
                 borehole_items.append(
                     BoreholeDetail(
                         borehole_id=str(bh_id),
-                        depth_m=float(depth),
-                        ground_level_m=bh.get("ground_level_m", 100.0),
-                        water_table_depth_m=float(gw) if gw else None,
+                        depth_m=depth,
+                        ground_level_m=_number_from_report_value(
+                            bh.get("ground_level_m", bh.get("ground_rl_m"))
+                        ),
+                        water_table_depth_m=_number_from_report_value(groundwater_depth                        ),
                         coordinates=bh.get("coordinates"),
                         strata=strata_layers,
-                        termination_stratum=bh.get("termination_stratum", "Hard Bedrock")
+                        termination_stratum=termination_stratum,
                     )
                 )
 
-        if not borehole_items:
-            # Synthesize representative borehole grid conforming to exploration depth
-            total_bhs = 6
-            max_d = report.target_depth_m or 30.0
-            gw = report.water_table_depth_m or 8.4
-            for i in range(1, total_bhs + 1):
-                layers = [
-                    BoreholeLayer(depth_from_m=0.0, depth_to_m=1.5, thickness_m=1.5, soil_type="Fill / Topsoil", spt_n=8, description="Loose miscellaneous fill"),
-                    BoreholeLayer(depth_from_m=1.5, depth_to_m=8.0, thickness_m=6.5, soil_type="Medium Dense Sand", spt_n=18, description="Medium dense brown sand with gravel"),
-                    BoreholeLayer(depth_from_m=8.0, depth_to_m=21.5, thickness_m=13.5, soil_type="Dense Sand", spt_n=36, description="Very dense sand, highly compacted"),
-                    BoreholeLayer(depth_from_m=21.5, depth_to_m=max_d, thickness_m=round(max_d - 21.5, 1), soil_type=report.primary_rock_type or "Basalt Bedrock", spt_n=100, rqd=report.rock_quality_designation_rqd or 65.0, ucs_mpa=report.unconfined_compressive_strength_mpa or 85.0, description="Fresh to slightly weathered bedrock"),
-                ]
-                borehole_items.append(
-                    BoreholeDetail(
-                        borehole_id=f"BH-{i:02d}",
-                        depth_m=float(max_d),
-                        ground_level_m=round(100.0 + (i * 0.15), 2),
-                        water_table_depth_m=round(gw + ((i % 2) * 0.2), 2),
-                        strata=layers,
-                        termination_stratum="Fresh Bedrock"
-                    )
-                )
-
-        project_name = report.project.name if report.project else "Subsurface Investigation"
+        project_name = report.project.name if report.project else "Geotechnical Report"
         resp = BoreholesResponse(
             report_id=report.report_code or f"GT-{1000 + report.id}",
             project_name=project_name,
@@ -535,70 +589,110 @@ def get_soil_profile(
 ):
     try:
         report = _get_tenant_report(db, report_id, client)
-        layers: List[SoilLayerDetail] = [
-            SoilLayerDetail(
-                layer_number=1,
-                depth_from_m=0.0,
-                depth_to_m=1.5,
-                thickness_m=1.5,
-                soil_type="Fill / Topsoil",
-                classification="FILL",
-                color="Dark Brown",
-                consistency_density="Loose",
-                spt_n_range="6 - 10",
-                laboratory_tests={"bulk_density_kn_m3": 17.2, "moisture_content_percent": 14.5}
-            ),
-            SoilLayerDetail(
-                layer_number=2,
-                depth_from_m=1.5,
-                depth_to_m=8.0,
-                thickness_m=6.5,
-                soil_type="Medium Dense Sand",
-                classification="SP-SM",
-                color="Yellowish Brown",
-                consistency_density="Medium Dense",
-                spt_n_range="15 - 22",
-                laboratory_tests={"bulk_density_kn_m3": 18.5, "friction_angle_deg": 32.0, "cohesion_c_kpa": 0.0}
-            ),
-            SoilLayerDetail(
-                layer_number=3,
-                depth_from_m=8.0,
-                depth_to_m=21.5,
-                thickness_m=13.5,
-                soil_type="Dense Sand with Silt",
-                classification="SM",
-                color="Greyish Brown",
-                consistency_density="Dense",
-                spt_n_range="32 - 45",
-                laboratory_tests={"bulk_density_kn_m3": 19.8, "friction_angle_deg": 36.5, "cohesion_c_kpa": 4.0}
-            ),
-            SoilLayerDetail(
-                layer_number=4,
-                depth_from_m=21.5,
-                depth_to_m=report.target_depth_m or 30.0,
-                thickness_m=round((report.target_depth_m or 30.0) - 21.5, 1),
-                soil_type=report.primary_rock_type or "Basalt Bedrock",
-                classification="ROCK (Hard)",
-                color="Dark Grey",
-                consistency_density="Massive Hard Rock",
-                spt_n_range="> 100 (Refusal)",
-                rqd_percent=report.rock_quality_designation_rqd or 65.0,
-                ucs_mpa=report.unconfined_compressive_strength_mpa or 85.0,
-                laboratory_tests={"unit_weight_kn_m3": 26.5, "rmr_score": report.rock_mass_rating_rmr or 68}
-            )
-        ]
+        data: Dict[str, Any] = {}
+        if report.intelligence_data_json:
+            try:
+                data = json.loads(report.intelligence_data_json)
+            except json.JSONDecodeError as exc:
+                raise HTTPException(status_code=500, detail="Stored geotechnical report data is invalid.") from exc
+            if not isinstance(data, dict):
+                raise HTTPException(status_code=500, detail="Stored geotechnical report data has an invalid structure.")
 
+        raw_layers = data.get("stratigraphy", [])
+        if not isinstance(raw_layers, list):
+            raw_layers = []
+        if not raw_layers:
+            raw_boreholes = data.get("boreholes", [])
+            for borehole in raw_boreholes if isinstance(raw_boreholes, list) else []:
+                if isinstance(borehole, dict):
+                    borehole_layers = borehole.get("soil_layers", borehole.get("layers", []))
+                    if isinstance(borehole_layers, list):
+                        raw_layers.extend(borehole_layers)
+
+        layers: List[SoilLayerDetail] = []
+        seen_layers = set()
+        for raw_layer in raw_layers:
+            if not isinstance(raw_layer, dict):
+                continue
+            depth_from = _number_from_report_value(
+                raw_layer.get("top_depth", raw_layer.get("depth_from_m", raw_layer.get("from_m")))
+            )
+            depth_to = _number_from_report_value(
+                raw_layer.get("bottom_depth", raw_layer.get("depth_to_m", raw_layer.get("to_m")))
+            )
+            if depth_from is None or depth_to is None:
+                continue
+            soil_type = (
+                raw_layer.get("soil_type")
+                or raw_layer.get("layer_name")
+                or raw_layer.get("material")
+                or raw_layer.get("soil_description")
+                or raw_layer.get("description")
+            )
+            if not soil_type:
+                continue
+            layer_key = (depth_from, depth_to, str(soil_type))
+            if layer_key in seen_layers:
+                continue
+            seen_layers.add(layer_key)
+            thickness = _number_from_report_value(
+                raw_layer.get("thickness", raw_layer.get("thickness_m"))
+            )
+            spt_value = raw_layer.get("spt_n_range", raw_layer.get("spt_n"))
+            layers.append(
+                SoilLayerDetail(
+                    layer_number=len(layers) + 1,
+                    depth_from_m=depth_from,
+                    depth_to_m=depth_to,
+                    thickness_m=round(thickness if thickness is not None else depth_to - depth_from, 2),
+                    soil_type=str(soil_type),
+                    classification=raw_layer.get("classification", raw_layer.get("soil_classification")),
+                    color=raw_layer.get("color", raw_layer.get("colour")),
+                    consistency_density=raw_layer.get("consistency_density", raw_layer.get("density_consistency")),
+                    spt_n_range=str(spt_value) if spt_value is not None else None,
+                    rqd_percent=_number_from_report_value(raw_layer.get("rqd_percent", raw_layer.get("rqd"))),
+                    ucs_mpa=_number_from_report_value(raw_layer.get("ucs_mpa")),
+                    laboratory_tests=raw_layer.get("laboratory_tests"),
+                )
+            )
+
+        groundwater_analysis = data.get("groundwater_analysis")
+        groundwater_value = (
+            groundwater_analysis.get("observed_depth")
+            if isinstance(groundwater_analysis, dict)
+            else None
+        )
+        foundation_recommendations = data.get("foundation_recommendations")
+        safe_bearing_value = (
+            foundation_recommendations.get("net_allowable_bearing_capacity")
+            if isinstance(foundation_recommendations, dict)
+            else None
+        )
+        investigation_information = data.get("investigation_information")
+        standards = (
+            val(investigation_information.get("relevant_is_standards"))
+            if isinstance(investigation_information, dict)
+            else None
+        )
+        excavation_analysis = data.get("excavation_analysis")
+        excavability_class = (
+            val(excavation_analysis.get("excavability_class"))
+            if isinstance(excavation_analysis, dict)
+            else None
+        )
+        groundwater_depth = _number_from_report_value(groundwater_value)
+        if groundwater_depth is None:
+            groundwater_depth = report.water_table_depth_m
         resp = SoilProfileResponse(
             report_id=report.report_code or f"GT-{1000 + report.id}",
-            project_name=report.project.name if report.project else "Geotechnical Investigation",
+            project_name=report.project.name if report.project else "Geotechnical Report",
             layers=layers,
             governing_parameters={
-                "water_table_depth_m": report.water_table_depth_m or 8.4,
-                "safe_bearing_capacity_kpa": 320.0,
-                "bedrock_depth_m": 21.5,
-                "excavability_class": report.excavability_class or "Class IV (Heavy Breaker)"
+                "water_table_depth_m": groundwater_depth,
+                "safe_bearing_capacity": val(safe_bearing_value),
+                "excavability_class": excavability_class,
             },
-            is_codes=["IS 1498:1970", "IS 1892:2021", "IS 2131:1981", "IS 1888:1982"]
+            is_codes=standards if isinstance(standards, list) else []
         )
         _record_audit(request, db, client, status.HTTP_200_OK)
         return resp

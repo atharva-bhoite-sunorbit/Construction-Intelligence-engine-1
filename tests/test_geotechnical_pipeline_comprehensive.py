@@ -158,7 +158,8 @@ def test_universal_extractor_16_parameters_rock_report():
     bh1 = bhs[0]
     assert bh1["borehole_id"] == "BH-01"
     assert bh1["ground_rl_m"] == 102.5
-    assert bh1["borehole_depth_m"] == 30.0
+    assert bh1["borehole_depth_m"] is None
+    assert extractor.extract_investigation_info(len(extractor.extract_boreholes()))["maximum_depth_m"] == 30.0
 
     # 3. Soil Stratification
     strat = params["soil_stratification"]

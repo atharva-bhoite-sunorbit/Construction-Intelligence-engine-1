@@ -52,6 +52,10 @@ export interface Activity {
   actual_duration?: number;
   start_date: string;
   end_date: string;
+  baseline_task_id?: number | null;
+  baseline_start_date?: string | null;
+  baseline_end_date?: string | null;
+  baseline_source_file?: string | null;
   actual_start_date?: string;
   actual_end_date?: string;
   required_labour: number;
@@ -220,6 +224,7 @@ export interface EnvironmentalAnalysis {
   weather_condition: string;
   humidity_percent: number;
   rainfall_mm: number;
+  weather_report_filename?: string;
   soil_type: string;
   safe_bearing_capacity_kpa: number;
   moisture_content_percent: number;
@@ -294,6 +299,14 @@ export interface Blocker {
   created_at: string;
 }
 
+export interface HindranceSubmissionReceipt {
+  id: number;
+  project_id: number;
+  status: string;
+  created_at: string;
+  message: string;
+}
+
 export interface SiteObservation {
   id: number;
   project_id: number;
@@ -347,10 +360,33 @@ export interface RiskItem {
 export interface ImpactAnalysisResponse {
   source_activity_id: number;
   source_activity_name: string;
+  source_activity_code?: string | null;
+  source_baseline_task_id?: number | null;
+  source_phase?: string | null;
+  source_work_package?: string | null;
+  source_baseline_start_date?: string | null;
+  source_baseline_end_date?: string | null;
+  source_live_start_date?: string | null;
+  source_live_end_date?: string | null;
+  baseline_completion_date?: string | null;
+  projected_completion_date?: string | null;
   delay_days: number;
   affected_activities: Array<{
     affected_activity_id: number;
     affected_activity_name: string;
+    activity_code?: string | null;
+    baseline_task_id?: number | null;
+    phase?: string | null;
+    work_package?: string | null;
+    tower?: string | null;
+    floor?: number | null;
+    baseline_start_date?: string | null;
+    baseline_end_date?: string | null;
+    live_start_date?: string | null;
+    live_end_date?: string | null;
+    impacted_start_date?: string | null;
+    impacted_end_date?: string | null;
+    date_basis?: string | null;
     impact_days: number;
     impact_level: string;
     path_depth: number;
@@ -371,6 +407,41 @@ export interface CompletionForecast {
   critical_path_length_days: number;
   confidence_interval_days: number;
   methodology_notes: string;
+  prediction_mode?: string;
+  accuracy_metrics?: {
+    model_accuracy: number;
+    roc_auc: number;
+    r_squared: number;
+    mae_days: number;
+    confidence_score: number;
+    validation_samples: number;
+    cross_val_score: number;
+    model_type: string;
+  };
+  duration_metrics?: {
+    total_planned_months: number;
+    elapsed_months: number;
+    remaining_months: number;
+    forecast_total_months: number;
+    variance_months: number;
+    total_planned_days: number;
+    elapsed_days: number;
+    remaining_days: number;
+    forecast_total_days: number;
+    progress_time_percent: number;
+  };
+  driving_activities?: Array<{
+    id: number;
+    name: string;
+    code?: string;
+    tower?: string;
+    floor?: number;
+    work_package?: string;
+    baseline_finish: string;
+    is_critical: boolean;
+    predicted_delay_days: number;
+    delay_probability: number;
+  }>;
   history?: Array<{
     date: string;
     slippage_days: number;
@@ -378,11 +449,103 @@ export interface CompletionForecast {
   }>;
 }
 
+export interface BriefRequirements {
+  work_scope: string;
+  technical_specifications: string;
+  material_requirements: string;
+  equipment_requirements: string;
+  safety_and_quality: string;
+}
+
+export interface LabourRequirement {
+  total_headcount: number;
+  trades: {
+    masons?: number;
+    bar_benders?: number;
+    carpenters?: number;
+    helpers?: number;
+    operators?: number;
+    supervisors?: number;
+    electricians?: number;
+    [key: string]: number | undefined;
+  };
+  shift: string;
+  muster_status: string;
+}
+
+export interface DailyTaskActivity {
+  id: number;
+  name: string;
+  code?: string;
+  phase: string;
+  work_package?: string;
+  tower: string;
+  floor: number;
+  zone: string;
+  start_date: string;
+  end_date: string;
+  actual_start_date?: string | null;
+  actual_end_date?: string | null;
+  status: string;
+  progress_percent: number;
+  planned_progress_percent: number;
+  priority: string;
+  is_critical: boolean;
+  total_float: number;
+  delay_risk_score: number;
+  predicted_delay_days: number;
+  risk_level: string;
+  category: 'IN_CONTROL' | 'RISKY' | 'DELAYED';
+  risk_factors: string[];
+  blockers_count: number;
+  blockers: Array<{
+    id: number;
+    title: string;
+    category: string;
+    severity: string;
+    status: string;
+  }>;
+  brief_requirements: BriefRequirements;
+  labour_requirement: LabourRequirement;
+  assigned_role?: string;
+  stage1_status?: string;
+  pm_verification_status?: string;
+  final_recorded?: boolean;
+}
+
+export interface DailyTasksResponse {
+  project_id: number;
+  project_name: string;
+  project_code: string;
+  target_date: string;
+  total_activities: number;
+  total_labour_required: number;
+  total_equipment_deployed: number;
+  in_control_count: number;
+  risky_count: number;
+  delayed_count: number;
+  is_upcoming_view?: boolean;
+  notice_message?: string | null;
+  is_project_completed?: boolean;
+  completion_date?: string | null;
+  activities: DailyTaskActivity[];
+}
+
 export interface AIRecommendation {
   id: number;
   project_id: number;
   activity_id?: number;
   activity_name?: string;
+  baseline_task_id?: number | null;
+  phase?: string | null;
+  work_package?: string | null;
+  tower?: string | null;
+  floor?: number | null;
+  baseline_start_date?: string | null;
+  baseline_end_date?: string | null;
+  live_start_date?: string | null;
+  live_end_date?: string | null;
+  baseline_variance_days?: number | null;
   risk_level: string;
   issue_summary: string;
   contributing_factors: string[];
@@ -786,5 +949,3 @@ export interface GeotechnicalIntelligenceDoc {
   summary?: GeotechnicalSummary;
   rock_types?: any[];
 }
-
-

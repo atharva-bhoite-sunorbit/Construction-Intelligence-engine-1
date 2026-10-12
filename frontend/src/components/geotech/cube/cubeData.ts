@@ -158,12 +158,12 @@ export const getStrata3DShading = (materialKey?: string, isRock?: boolean, ucs?:
   }
   if (k.includes('basalt')) {
     return {
-      leftTone: '#0891b2',
-      leftToneEnd: '#0e7490',
-      rightTone: '#083344',
-      topTone: '#22d3ee',
-      stroke: '#67e8f9',
-      textBadge: 'text-cyan-300',
+      leftTone: '#0f766e',
+      leftToneEnd: '#115e59',
+      rightTone: '#134e4a',
+      topTone: '#2dd4bf',
+      stroke: '#5eead4',
+      textBadge: 'text-teal-300',
       patternType: 'bedrock_boulders',
     };
   }
@@ -180,23 +180,23 @@ export const getStrata3DShading = (materialKey?: string, isRock?: boolean, ucs?:
   }
   if (k.includes('gneiss')) {
     return {
-      leftTone: '#4f46e5',
-      leftToneEnd: '#4338ca',
-      rightTone: '#1e1b4b',
-      topTone: '#818cf8',
-      stroke: '#c7d2fe',
-      textBadge: 'text-indigo-300',
+      leftTone: '#475569',
+      leftToneEnd: '#334155',
+      rightTone: '#1e293b',
+      topTone: '#94a3b8',
+      stroke: '#cbd5e1',
+      textBadge: 'text-slate-300',
       patternType: 'bedrock_boulders',
     };
   }
   if (k.includes('quartzite')) {
     return {
-      leftTone: '#06b6d4',
-      leftToneEnd: '#0891b2',
-      rightTone: '#164e63',
-      topTone: '#67e8f9',
-      stroke: '#a5f3fc',
-      textBadge: 'text-cyan-300',
+      leftTone: '#0f766e',
+      leftToneEnd: '#115e59',
+      rightTone: '#134e4a',
+      topTone: '#2dd4bf',
+      stroke: '#99f6e4',
+      textBadge: 'text-teal-300',
       patternType: 'bedrock_boulders',
     };
   }
@@ -213,12 +213,12 @@ export const getStrata3DShading = (materialKey?: string, isRock?: boolean, ucs?:
   }
   if (isRock || (ucs && ucs > 25)) {
     return {
-      leftTone: '#2563eb',
-      leftToneEnd: '#1d4ed8',
-      rightTone: '#172554',
-      topTone: '#60a5fa',
-      stroke: '#93c5fd',
-      textBadge: 'text-blue-300',
+      leftTone: '#475569',
+      leftToneEnd: '#334155',
+      rightTone: '#1e293b',
+      topTone: '#94a3b8',
+      stroke: '#cbd5e1',
+      textBadge: 'text-amber-300',
       patternType: 'bedrock_boulders',
     };
   }
@@ -367,11 +367,11 @@ export const REFERENCE_HIGHWAY_LAYERS: PavementLayerDefinition[] = [
     subtitle: 'High-Tensile Biaxial Reinforcement & Filtration',
     category: 'Geosynthetic Layer',
     thicknessMm: 60,
-    thicknessDisplay: 'Structural Grid & Membrane (Cyan)',
+    thicknessDisplay: 'Structural Grid & Membrane (Slate)',
     depthRangeDisplay: '0.68 m - 0.74 m EGL',
     materialKey: 'quartzite',
-    fillLeft: '#0284c7',
-    fillRight: '#0369a1',
+    fillLeft: '#64748b',
+    fillRight: '#475569',
     top_m: 0.68,
     bottom_m: 0.74,
     thickness_m: 0.06,

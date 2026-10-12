@@ -178,6 +178,10 @@ class ActivityUpdate(BaseModel):
 class ActivityResponse(ActivityBase):
     id: int
     project_id: int
+    baseline_task_id: Optional[int] = None
+    baseline_start_date: Optional[date] = None
+    baseline_end_date: Optional[date] = None
+    baseline_source_file: Optional[str] = None
     actual_duration: Optional[int] = None
     actual_start_date: Optional[date] = None
     actual_end_date: Optional[date] = None
@@ -331,6 +335,8 @@ class EnvironmentalAnalysisCreate(BaseModel):
     weather_condition: str = "Clear"
     humidity_percent: float = 55.0
     rainfall_mm: float = 0.0
+    weather_report_filename: Optional[str] = None
+    weather_report_raw_text: Optional[str] = None
     soil_type: Optional[str] = "Sandy Loam"
     safe_bearing_capacity_kpa: Optional[float] = 200.0
     moisture_content_percent: Optional[float] = 14.0
@@ -350,6 +356,7 @@ class EnvironmentalAnalysisResponse(BaseModel):
     weather_condition: str
     humidity_percent: float
     rainfall_mm: float
+    weather_report_filename: Optional[str] = None
     soil_type: str
     safe_bearing_capacity_kpa: float
     moisture_content_percent: float
@@ -409,6 +416,13 @@ class BlockerUpdate(BaseModel):
     hindrance_state: Optional[str] = None
     delay_impact_days: Optional[float] = None
     difficulty_cause: Optional[str] = None
+
+class BlockerSubmissionResponse(BaseModel):
+    id: int
+    project_id: int
+    status: str
+    created_at: datetime
+    message: str
 
 class BlockerResponse(BaseModel):
     id: int
@@ -530,6 +544,19 @@ class MLMaterialPredictionResponse(BaseModel):
 class ImpactItem(BaseModel):
     affected_activity_id: int
     affected_activity_name: str
+    activity_code: Optional[str] = None
+    baseline_task_id: Optional[int] = None
+    phase: Optional[str] = None
+    work_package: Optional[str] = None
+    tower: Optional[str] = None
+    floor: Optional[int] = None
+    baseline_start_date: Optional[date] = None
+    baseline_end_date: Optional[date] = None
+    live_start_date: Optional[date] = None
+    live_end_date: Optional[date] = None
+    impacted_start_date: Optional[date] = None
+    impacted_end_date: Optional[date] = None
+    date_basis: Optional[str] = None
     impact_days: float
     impact_level: str
     path_depth: int
@@ -539,6 +566,16 @@ class ImpactItem(BaseModel):
 class ImpactAnalysisResponse(BaseModel):
     source_activity_id: int
     source_activity_name: str
+    source_activity_code: Optional[str] = None
+    source_baseline_task_id: Optional[int] = None
+    source_phase: Optional[str] = None
+    source_work_package: Optional[str] = None
+    source_baseline_start_date: Optional[date] = None
+    source_baseline_end_date: Optional[date] = None
+    source_live_start_date: Optional[date] = None
+    source_live_end_date: Optional[date] = None
+    baseline_completion_date: Optional[date] = None
+    projected_completion_date: Optional[date] = None
     delay_days: float
     affected_activities: List[ImpactItem]
     project_completion_slippage_days: float
@@ -565,6 +602,16 @@ class AIRecommendationResponse(BaseModel):
     project_id: int
     activity_id: Optional[int] = None
     activity_name: Optional[str] = None
+    baseline_task_id: Optional[int] = None
+    phase: Optional[str] = None
+    work_package: Optional[str] = None
+    tower: Optional[str] = None
+    floor: Optional[int] = None
+    baseline_start_date: Optional[date] = None
+    baseline_end_date: Optional[date] = None
+    live_start_date: Optional[date] = None
+    live_end_date: Optional[date] = None
+    baseline_variance_days: Optional[int] = None
     risk_level: str
     issue_summary: str
     contributing_factors: List[str]
@@ -659,4 +706,3 @@ class GeotechnicalReportResponse(BaseModel):
 
     class Config:
         from_attributes = True
-

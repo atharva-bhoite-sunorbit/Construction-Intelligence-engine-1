@@ -1,4 +1,5 @@
 import React from 'react';
+import { GeotechnicalReport } from '../types';
 import { useIsometricCubeModel } from './geotech/cube/useIsometricCubeModel';
 import { CubeViewport } from './geotech/cube/CubeViewport';
 import { StrataColumn } from './geotech/cube/StrataColumn';
