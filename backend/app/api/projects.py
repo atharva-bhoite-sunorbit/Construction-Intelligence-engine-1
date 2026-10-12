@@ -94,7 +94,7 @@ def create_project(
 
 @router.get("", response_model=List[ProjectResponse])
 def list_projects(db: Session = Depends(get_db)):
-    projects = db.query(Project).order_by(Project.created_at.desc()).all()
+    projects = db.query(Project).filter(Project.code == "PRJ-41ZOY").order_by(Project.created_at.desc()).all()
     results = []
 
     for p in projects:

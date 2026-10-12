@@ -7,9 +7,10 @@ from backend.app.services.dependency_engine import DependencyEngine
 
 class SchedulingEngine:
     @staticmethod
-    def generate_and_apply_schedule(db: Session, project_id: int) -> Dict[str, Any]:
+    def generate_and_apply_schedule(db: Session, project_id: int, overwrite_dates: bool = False) -> Dict[str, Any]:
         """
-        Runs CPM schedule calculation and persists updated dates, float values, and critical status.
+        Runs CPM schedule calculation and persists float values, early/late dates, and critical status.
+        Only updates start_date and end_date if overwrite_dates=True or if the activity has no dates.
         """
         project = db.query(Project).filter(Project.id == project_id).first()
         if not project:
@@ -45,10 +46,11 @@ class SchedulingEngine:
                 act.free_float = info["free_float"]
                 act.is_critical = act.id in critical_ids
 
-                # Update schedule dates only if status is not completed/actual locked
-                if act.status != "COMPLETED":
-                    act.start_date = info["calculated_start_date"]
-                    act.end_date = info["calculated_end_date"]
+                # Update schedule dates only if overwrite_dates is True or dates missing
+                if overwrite_dates or not act.start_date:
+                    if act.status != "COMPLETED":
+                        act.start_date = info["calculated_start_date"]
+                        act.end_date = info["calculated_end_date"]
 
         db.commit()
 

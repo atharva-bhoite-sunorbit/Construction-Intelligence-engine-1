@@ -16,6 +16,8 @@ from backend.app.schemas.all_schemas import (
 )
 from backend.app.services.geotechnical_service import (
     extract_text_from_file,
+    extract_pages_from_file,
+    validate_geotechnical_report_text,
     analyze_geotechnical_report,
     guess_report_title
 )
@@ -23,6 +25,7 @@ from backend.app.services.geotech_intel.service import GeotechnicalIntelligenceS
 from backend.app.services.geotech_intel.exporter import export_geotechnical_pdf, export_geotechnical_excel
 
 router = APIRouter(tags=["Geotechnical Intelligence"])
+MAX_GEOTECHNICAL_UPLOAD_SIZE = 25 * 1024 * 1024
 
 
 def _format_report_dict(r: GeotechnicalReport) -> Dict[str, Any]:
@@ -77,7 +80,7 @@ async def upload_geotechnical_intelligence(
     db: Session = Depends(get_db)
 ):
     """
-    Accepts PDF or text geotechnical reports.
+    Accepts supported geotechnical document formats and report text.
     Parses and extracts source-grounded geotechnical data into a dedicated report session.
     """
     # Fallback to first project if not provided
@@ -97,6 +100,11 @@ async def upload_geotechnical_intelligence(
     if file and file.filename:
         filename = file.filename
         content = await file.read()
+        if len(content) > MAX_GEOTECHNICAL_UPLOAD_SIZE:
+            raise HTTPException(
+                status_code=413,
+                detail="File exceeds the maximum upload size of 25 MB."
+            )
     elif not raw_text or not raw_text.strip():
         raise HTTPException(status_code=400, detail="Please upload a PDF file or provide geotechnical report text.")
 
@@ -126,6 +134,8 @@ async def upload_geotechnical_intelligence(
             "report_id": report_data.get("report_id"),
             "data": report_data
         }
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Report parsing failed: {str(e)}")
 
@@ -569,16 +579,23 @@ async def upload_project_geotechnical_report(
     if file and file.filename:
         filename = file.filename
         content = await file.read()
-        extracted, _ = extract_text_from_file(content, filename)
-        text_to_analyze = extracted
+        if len(content) > MAX_GEOTECHNICAL_UPLOAD_SIZE:
+            raise HTTPException(status_code=413, detail="File exceeds the maximum upload size of 25 MB.")
+        try:
+            extracted_pages = extract_pages_from_file(content, filename)
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+        text_to_analyze = "\n".join(page for page in extracted_pages if page and page.strip())
     elif raw_text and raw_text.strip():
         text_to_analyze = raw_text.strip()
         filename = "Pasted Geotechnical Report"
     else:
         raise HTTPException(status_code=400, detail="Please upload a report file or provide geotechnical text.")
 
-    if not text_to_analyze:
-        raise HTTPException(status_code=400, detail="Unable to extract text from the provided document.")
+    try:
+        validate_geotechnical_report_text(text_to_analyze)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
 
     analysis_params = {
         "target_depth_m": target_depth_m,
@@ -604,30 +621,30 @@ async def upload_project_geotechnical_report(
     report_title = guess_report_title(text_to_analyze, filename)
 
     # Run source-grounded intelligence extractor
-    intel_data = None
     try:
         intel_data = GeotechnicalIntelligenceService.process_and_save_report(
             db=db,
             project_id=project_id,
             content=content,
             raw_text=text_to_analyze,
-            filename=filename
+            filename=filename,
+            extracted_pages=extracted_pages if content else None,
         )
-    except Exception as e:
-        print(f"Intelligence processing note: {e}")
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
 
     report_obj = GeotechnicalReport(
         project_id=project_id,
         report_title=report_title,
         filename=filename,
         raw_text=text_to_analyze[:10000],
-        primary_rock_type=governing.get("material") or "Rock / Soil",
-        strata_classification=governing.get("category") or "Strata Formation",
+        primary_rock_type=governing.get("material"),
+        strata_classification=governing.get("category"),
         rock_quality_designation_rqd=governing.get("rqd_pct"),
         unconfined_compressive_strength_mpa=governing.get("ucs_mpa"),
-        weathering_grade=governing.get("weathering_grade") or "Not Specified",
+        weathering_grade=governing.get("weathering_grade"),
         rock_mass_rating_rmr=summary.get("rmr"),
-        excavability_class=governing.get("excavability_class") or summary.get("governing_class") or "Class III",
+        excavability_class=governing.get("excavability_class") or summary.get("governing_class"),
         water_table_depth_m=parsed.get("water_table_depth_m"),
         excavation_area_sqm=excavation_area_sqm,
         target_depth_m=target_depth_m,
@@ -641,7 +658,7 @@ async def upload_project_geotechnical_report(
         hazard_controls_json=json.dumps(hazards),
         analysis_params_json=json.dumps(analysis_params),
         summary_json=json.dumps(summary),
-        intelligence_data_json=json.dumps(intel_data) if intel_data else None,
+        intelligence_data_json=json.dumps(intel_data),
         status="ANALYZED"
     )
 
@@ -665,6 +682,10 @@ def analyze_geotechnical_text_endpoint(
     text_to_analyze = (req.raw_text or "").strip()
     if not text_to_analyze:
         raise HTTPException(status_code=400, detail="raw_text cannot be empty")
+    try:
+        validate_geotechnical_report_text(text_to_analyze)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
 
     analysis_params = {
         "target_depth_m": req.target_depth_m or 6.0,
@@ -688,7 +709,6 @@ def analyze_geotechnical_text_endpoint(
 
     report_title = guess_report_title(text_to_analyze, req.filename)
 
-    intel_data = None
     try:
         intel_data = GeotechnicalIntelligenceService.process_and_save_report(
             db=db,
@@ -696,21 +716,21 @@ def analyze_geotechnical_text_endpoint(
             raw_text=text_to_analyze,
             filename=req.filename or "Direct Text Entry"
         )
-    except Exception as e:
-        print(f"Direct text intelligence note: {e}")
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
 
     report_obj = GeotechnicalReport(
         project_id=project_id,
         report_title=report_title,
         filename=req.filename or "Direct Geotechnical Text Entry",
         raw_text=text_to_analyze[:10000],
-        primary_rock_type=governing.get("material") or "Rock / Soil",
-        strata_classification=governing.get("category") or "Strata Formation",
+        primary_rock_type=governing.get("material"),
+        strata_classification=governing.get("category"),
         rock_quality_designation_rqd=governing.get("rqd_pct"),
         unconfined_compressive_strength_mpa=governing.get("ucs_mpa"),
-        weathering_grade=governing.get("weathering_grade") or "Not Specified",
+        weathering_grade=governing.get("weathering_grade"),
         rock_mass_rating_rmr=summary.get("rmr"),
-        excavability_class=governing.get("excavability_class") or summary.get("governing_class") or "Class III",
+        excavability_class=governing.get("excavability_class") or summary.get("governing_class"),
         water_table_depth_m=parsed.get("water_table_depth_m"),
         excavation_area_sqm=req.excavation_area_sqm or 1200.0,
         target_depth_m=req.target_depth_m or 6.0,
@@ -724,7 +744,7 @@ def analyze_geotechnical_text_endpoint(
         hazard_controls_json=json.dumps(hazards),
         analysis_params_json=json.dumps(analysis_params),
         summary_json=json.dumps(summary),
-        intelligence_data_json=json.dumps(intel_data) if intel_data else None,
+        intelligence_data_json=json.dumps(intel_data),
         status="ANALYZED"
     )
 
@@ -1000,5 +1020,3 @@ def send_geotechnical_plan_to_manager(
             for a in geo_activities
         ]
     }
-
-

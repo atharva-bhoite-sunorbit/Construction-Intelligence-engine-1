@@ -24,14 +24,14 @@ export const VEHICLE_IMAGE_MAP: Record<string, { src: string; label: string; bad
     src: '/vehicles/drill_rig.png',
     label: 'Crawler DTH Blast-Hole Drill Rig',
     badge: 'Class V Bedrock Drilling',
-    badgeColor: 'bg-indigo-100 text-indigo-900 border-indigo-300',
+    badgeColor: 'bg-slate-100 text-slate-900 border-slate-300',
     description: 'Crawler blast-hole drill rig with heavy vertical mast for drilling 89-115 mm blast holes or non-explosive demolition expansive grout holes.',
   },
   tipper: {
     src: '/vehicles/tipper.png',
     label: '10-Wheel Heavy Tipper / Dumper Truck',
     badge: 'High-Capacity Spoil Haulage',
-    badgeColor: 'bg-blue-100 text-blue-900 border-blue-300',
+    badgeColor: 'bg-amber-100 text-amber-900 border-amber-300',
     description: 'Heavy 16-20 tonne multi-axle dump trucks hauling excavated rock and soil muck to designated dumping yards.',
   },
   compressor: {
@@ -45,7 +45,7 @@ export const VEHICLE_IMAGE_MAP: Record<string, { src: string; label: string; bad
     src: '/vehicles/pump.png',
     label: 'Submersible Dewatering Slurry Pump',
     badge: 'Groundwater Ingress Control',
-    badgeColor: 'bg-cyan-100 text-cyan-900 border-cyan-300',
+    badgeColor: 'bg-teal-100 text-teal-900 border-teal-300',
     description: 'Heavy-duty non-clogging submersible slurry pumps for lowering groundwater table and keeping the excavation base dry.',
   },
   plate_compactor: {
@@ -130,12 +130,12 @@ export const STRATA_THEMES: Record<string, StrataVisualTheme> = {
     categoryLabel: 'Soft Disintegrated Rock (SDR)'
   },
   hard_rock: {
-    gradient: 'from-cyan-900 via-slate-900 to-blue-950',
-    borderColor: 'border-cyan-500',
-    badgeBg: 'bg-cyan-100',
-    badgeText: 'text-cyan-950',
-    badgeBorder: 'border-cyan-400',
-    accentColor: '#0891b2',
+    gradient: 'from-teal-900 via-slate-900 to-amber-950',
+    borderColor: 'border-teal-500',
+    badgeBg: 'bg-teal-100',
+    badgeText: 'text-teal-950',
+    badgeBorder: 'border-teal-400',
+    accentColor: '#0f766e',
     iconSymbol: '💎',
     categoryLabel: 'Massive Hard Bedrock'
   }

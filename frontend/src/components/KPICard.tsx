@@ -36,10 +36,10 @@ const colorStyles = {
     iconBg: 'bg-rose-100',
   },
   purple: {
-    bg: 'bg-indigo-50/60',
-    border: 'border-indigo-200/80',
-    text: 'text-indigo-800',
-    iconBg: 'bg-indigo-100',
+    bg: 'bg-slate-50/60',
+    border: 'border-slate-200/80',
+    text: 'text-slate-800',
+    iconBg: 'bg-slate-100',
   },
 };
 
@@ -60,14 +60,14 @@ export const KPICard: React.FC<KPICardProps> = ({
           {title}
         </span>
         <div className={`rounded-lg ${c.iconBg} p-2 ${c.text}`}>
-          <Icon className="h-5 w-5" />
+          <Icon className="h-4.5 w-4.5" />
         </div>
       </div>
 
       <div className="mt-3 flex items-baseline gap-2">
-        <span className="text-2xl font-bold tracking-tight text-slate-900 font-mono">{value}</span>
+        <span className="text-2xl font-bold tracking-tight text-slate-900 font-mono tabular-nums">{value}</span>
         {trend && (
-          <span className="text-xs font-semibold text-emerald-600">{trend}</span>
+          <span className="text-xs font-semibold text-emerald-600 font-mono tabular-nums">{trend}</span>
         )}
       </div>
 

@@ -22,7 +22,7 @@ export const SourceBadge: React.FC<SourceBadgeProps> = ({
       case 'REPORT':
         return 'bg-emerald-50 text-emerald-700 border-emerald-200';
       case 'CALCULATED':
-        return 'bg-blue-50 text-blue-700 border-blue-200';
+        return 'bg-amber-50 text-amber-700 border-amber-200';
       case 'AI_INTERPRETATION':
       case 'AI_RECOMMENDATION':
       case 'AI':
@@ -30,7 +30,7 @@ export const SourceBadge: React.FC<SourceBadgeProps> = ({
       case 'REQUIRES_DATA':
         return 'bg-amber-50 text-amber-700 border-amber-200';
       case 'USER_ENTERED':
-        return 'bg-sky-50 text-sky-700 border-sky-200';
+        return 'bg-amber-50 text-amber-700 border-amber-200';
       default:
         return 'bg-slate-100 text-slate-500 border-slate-200';
     }

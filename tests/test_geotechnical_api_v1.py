@@ -25,6 +25,15 @@ from backend.app.services.geotech_auth_service import (
 
 client = TestClient(app)
 
+VALID_GEOTECHNICAL_REPORT = (
+    b"GEOTECHNICAL INVESTIGATION REPORT FOR TEST TOWER\n"
+    b"BH-01 terminated at 12.0 m.\n"
+    b"Stratigraphy: 0.0m to 2.0m: Silty sand (SPT N = 12); "
+    b"2.0m to 12.0m: Dense sand (SPT N = 35).\n"
+    b"Groundwater encountered at 4.0 m below ground level.\n"
+    b"Safe bearing capacity: 150 kPa. Recommended foundation: raft foundation.\n"
+)
+
 
 @pytest.fixture(scope="module")
 def db_session():
@@ -167,7 +176,7 @@ def test_module_boundary_isolation(setup_tenants_and_keys):
     assert resp_auth.status_code == 403
 
 
-def test_upload_and_get_geotechnical_report(setup_tenants_and_keys):
+def test_upload_and_get_geotechnical_report(setup_tenants_and_keys, db_session):
     """Uploads a report with valid permissions and retrieves formatted overview."""
     _, erp_raw_key = setup_tenants_and_keys["erp"]
     headers = {"Authorization": f"Bearer {erp_raw_key}"}
@@ -188,7 +197,7 @@ def test_upload_and_get_geotechnical_report(setup_tenants_and_keys):
     }
 
     upload_resp = client.post("/api/v1/geotechnical/reports/upload", headers=headers, files=files, data=data)
-    assert upload_resp.status_code == 201
+    assert upload_resp.status_code == 201, upload_resp.text
     rep = upload_resp.json()
 
     report_id = rep["report_id"]
@@ -201,6 +210,10 @@ def test_upload_and_get_geotechnical_report(setup_tenants_and_keys):
     assert rep["soil_summary"]["major_soil"] is not None
     assert rep["analysis_available"] is True
     assert len(rep["alerts"]) > 0
+    saved_report = db_session.query(GeotechnicalReport).filter(
+        GeotechnicalReport.report_code == report_id
+    ).one()
+    assert saved_report.water_table_depth_m == pytest.approx(8.4)
 
     # Test GET /reports/{report_id}
     get_resp = client.get(f"/api/v1/geotechnical/reports/{report_id}", headers=headers)
@@ -214,20 +227,50 @@ def test_boreholes_endpoint(setup_tenants_and_keys):
     headers = {"Authorization": f"Bearer {erp_raw_key}"}
 
     # Upload fresh report
-    files = {"file": ("bh_test.txt", io.BytesIO(b"Borehole log test report"), "text/plain")}
+    files = {"file": ("bh_test.txt", io.BytesIO(VALID_GEOTECHNICAL_REPORT), "text/plain")}
     up = client.post("/api/v1/geotechnical/reports/upload", headers=headers, files=files, data={"project_name": "Tower Alpha"})
+    assert up.status_code == 201, up.text
     rep_id = up.json()["report_id"]
 
     resp = client.get(f"/api/v1/geotechnical/reports/{rep_id}/boreholes", headers=headers)
     assert resp.status_code == 200
     data = resp.json()
     assert data["report_id"] == rep_id
-    assert data["total_boreholes"] >= 1
-    assert len(data["boreholes"]) >= 1
+    assert data["total_boreholes"] == 1
+    assert len(data["boreholes"]) == 1
     bh = data["boreholes"][0]
     assert "borehole_id" in bh
-    assert "depth_m" in bh
-    assert "strata" in bh
+    assert bh["depth_m"] == pytest.approx(12.0)
+    assert bh["water_table_depth_m"] is None
+    assert bh["strata"][0]["depth_from_m"] == pytest.approx(0.0)
+    assert bh["strata"][0]["depth_to_m"] == pytest.approx(2.0)
+    assert "silty sand" in bh["strata"][0]["soil_type"].lower()
+
+
+def test_groundwater_range_is_not_persisted_as_a_single_depth(setup_tenants_and_keys, db_session):
+    _, erp_raw_key = setup_tenants_and_keys["erp"]
+    headers = {"Authorization": erp_raw_key}
+    report_content = (
+        b"GEOTECHNICAL INVESTIGATION REPORT\n"
+        b"BH-01 groundwater observed at 4.0 m.\n"
+        b"BH-02 groundwater observed at 6.0 m.\n"
+        b"BH-01 terminated at 12.0 m. BH-02 terminated at 12.0 m.\n"
+        b"Stratigraphy: 0.0m to 2.0m: Silty sand; 2.0m to 12.0m: Dense sand.\n"
+    )
+    files = {"file": ("groundwater_range.txt", io.BytesIO(report_content), "text/plain")}
+    upload = client.post(
+        "/api/v1/geotechnical/reports/upload",
+        headers=headers,
+        files=files,
+    )
+    assert upload.status_code == 201, upload.text
+
+    report = db_session.query(GeotechnicalReport).filter(
+        GeotechnicalReport.report_code == upload.json()["report_id"]
+    ).one()
+    assert report.water_table_depth_m is None
+    report_data = json.loads(report.intelligence_data_json)
+    assert report_data["groundwater_analysis"]["observed_depth"]["value"] == "4.0–6.0 m BGL"
 
 
 def test_soil_profile_endpoint(setup_tenants_and_keys):
@@ -235,14 +278,17 @@ def test_soil_profile_endpoint(setup_tenants_and_keys):
     _, erp_raw_key = setup_tenants_and_keys["erp"]
     headers = {"Authorization": f"Bearer {erp_raw_key}"}
 
-    files = {"file": ("soil_test.txt", io.BytesIO(b"Soil profile test data"), "text/plain")}
+    files = {"file": ("soil_test.txt", io.BytesIO(VALID_GEOTECHNICAL_REPORT), "text/plain")}
     up = client.post("/api/v1/geotechnical/reports/upload", headers=headers, files=files)
+    assert up.status_code == 201, up.text
     rep_id = up.json()["report_id"]
 
     resp = client.get(f"/api/v1/geotechnical/reports/{rep_id}/soil-profile", headers=headers)
     assert resp.status_code == 200
     data = resp.json()
-    assert len(data["layers"]) >= 1
+    assert data["layers"][0]["depth_from_m"] == pytest.approx(0.0)
+    assert data["layers"][0]["depth_to_m"] == pytest.approx(2.0)
+    assert "silty sand" in data["layers"][0]["soil_type"].lower()
     assert "governing_parameters" in data
     assert "is_codes" in data
 
@@ -252,7 +298,7 @@ def test_alerts_and_foundation_recommendations(setup_tenants_and_keys):
     _, erp_raw_key = setup_tenants_and_keys["erp"]
     headers = {"Authorization": f"Bearer {erp_raw_key}"}
 
-    files = {"file": ("alerts_test.txt", io.BytesIO(b"Alerts and foundations test"), "text/plain")}
+    files = {"file": ("alerts_test.txt", io.BytesIO(VALID_GEOTECHNICAL_REPORT), "text/plain")}
     up = client.post("/api/v1/geotechnical/reports/upload", headers=headers, files=files)
     rep_id = up.json()["report_id"]
 
@@ -275,7 +321,7 @@ def test_analyze_and_analysis_result(setup_tenants_and_keys):
     _, erp_raw_key = setup_tenants_and_keys["erp"]
     headers = {"Authorization": f"Bearer {erp_raw_key}"}
 
-    files = {"file": ("analyze_test.txt", io.BytesIO(b"Analysis test document"), "text/plain")}
+    files = {"file": ("analyze_test.txt", io.BytesIO(VALID_GEOTECHNICAL_REPORT), "text/plain")}
     up = client.post("/api/v1/geotechnical/reports/upload", headers=headers, files=files)
     rep_id = up.json()["report_id"]
 
@@ -305,7 +351,7 @@ def test_tenant_isolation(setup_tenants_and_keys):
     headers_beta = {"Authorization": f"Bearer {readonly_raw_key}"}
 
     # Tenant Alpha uploads a report
-    files = {"file": ("alpha_secret_report.txt", io.BytesIO(b"Alpha Confidential Data"), "text/plain")}
+    files = {"file": ("alpha_secret_report.txt", io.BytesIO(VALID_GEOTECHNICAL_REPORT + b"Alpha Confidential Data"), "text/plain")}
     up_alpha = client.post("/api/v1/geotechnical/reports/upload", headers=headers_alpha, files=files, data={"project_name": "Alpha Tower"})
     assert up_alpha.status_code == 201
     alpha_rep_id = up_alpha.json()["report_id"]

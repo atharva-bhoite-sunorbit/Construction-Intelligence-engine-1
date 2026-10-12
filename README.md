@@ -49,7 +49,7 @@ Construction-1/
 ## 🚀 Quickstart Guide
 
 ### Prerequisites
-- **Python**: 3.10+ (tested on Python 3.11)
+- **Python**: 3.10–3.12 (tested on 3.11; pinned `scikit-learn`/`numpy` do not build on Python 3.13+)
 - **Node.js**: 18+ and npm (tested on Node 22)
 - **Git**
 
@@ -117,13 +117,28 @@ Construction-1/
 
 ---
 
+### Importing the 41 ZOY Master Baseline
+
+The PDF baseline is stored separately from the live activity schedule. Importing it does not
+replace forecast or actual dates, progress, status, approvals, dependencies, or project history.
+Run a validation-only pass first, then add `--apply` to persist the baseline dates:
+
+```powershell
+.\venv\Scripts\python.exe scripts\import_zoy_pdf_baseline.py "C:\Users\athar\Downloads\ZOY - Baseline Master Schedule Tracker 06-OCT-2026(2).pdf"
+.\venv\Scripts\python.exe scripts\import_zoy_pdf_baseline.py "C:\Users\athar\Downloads\ZOY - Baseline Master Schedule Tracker 06-OCT-2026(2).pdf" --apply
+```
+
+The importer checks that every PDF task maps unambiguously to an existing 41 ZOY activity.
+If a row is unmatched or ambiguous, it stops without applying activity changes. Re-running a
+successful import is safe and updates only the stored baseline dates and PDF source metadata.
+
 ### 3. Running Automated Tests
 
 Run the comprehensive backend test suite:
 ```bash
 pytest
 ```
-Expected output: `27 passed` across CPM scheduling, ML prediction, Geotechnical Intelligence, and external API key integration test suites.
+Expected output: `44 passed` across CPM scheduling, ML prediction, Geotechnical Intelligence, and external API key integration test suites.
 
 ---
 
@@ -187,4 +202,3 @@ X-API-Key: geo_live_xxxxxxxxxxxxxxxxxxxxxxxxx
 
 ## 📄 License
 This project is proprietary and confidential. All rights reserved.
-

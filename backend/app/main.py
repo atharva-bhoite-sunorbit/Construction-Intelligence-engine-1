@@ -38,6 +38,10 @@ try:
         # Check site_environmental_logs geotechnical columns
         env_result = conn.execute(text("PRAGMA table_info(site_environmental_logs)")).fetchall()
         env_cols = [r[1] for r in env_result]
+        if "weather_report_filename" not in env_cols:
+            conn.execute(text("ALTER TABLE site_environmental_logs ADD COLUMN weather_report_filename VARCHAR(255)"))
+        if "weather_report_raw_text" not in env_cols:
+            conn.execute(text("ALTER TABLE site_environmental_logs ADD COLUMN weather_report_raw_text TEXT"))
         if "geotechnical_details_json" not in env_cols:
             conn.execute(text("ALTER TABLE site_environmental_logs ADD COLUMN geotechnical_details_json TEXT"))
 
@@ -68,6 +72,14 @@ try:
         # Check activities governance columns
         act_result = conn.execute(text("PRAGMA table_info(activities)")).fetchall()
         act_cols = [r[1] for r in act_result]
+        if "baseline_task_id" not in act_cols:
+            conn.execute(text("ALTER TABLE activities ADD COLUMN baseline_task_id INTEGER"))
+        if "baseline_start_date" not in act_cols:
+            conn.execute(text("ALTER TABLE activities ADD COLUMN baseline_start_date DATE"))
+        if "baseline_end_date" not in act_cols:
+            conn.execute(text("ALTER TABLE activities ADD COLUMN baseline_end_date DATE"))
+        if "baseline_source_file" not in act_cols:
+            conn.execute(text("ALTER TABLE activities ADD COLUMN baseline_source_file VARCHAR(255)"))
         if "assigned_role" not in act_cols:
             conn.execute(text("ALTER TABLE activities ADD COLUMN assigned_role VARCHAR(50) DEFAULT 'Site Manager'"))
         if "stage1_status" not in act_cols:

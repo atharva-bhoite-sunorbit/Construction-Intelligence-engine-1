@@ -55,7 +55,7 @@ export const FiveLayersAndPipelineView: React.FC<FiveLayersAndPipelineViewProps>
   return (
     <div className="space-y-8">
       {/* 1. Header Banner with 5 Intelligence Layers Flow */}
-      <div className="bg-linear-to-r from-slate-900 via-brand-950 to-indigo-950 rounded-2xl p-6 text-white shadow-lg border border-brand-800/30">
+      <div className="bg-linear-to-r from-slate-900 via-brand-950 to-slate-950 rounded-2xl p-6 text-white shadow-lg border border-brand-800/30">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-white/10 pb-5 mb-5">
           <div>
             <div className="flex items-center gap-2">
@@ -96,7 +96,7 @@ export const FiveLayersAndPipelineView: React.FC<FiveLayersAndPipelineViewProps>
         {/* 5-Layer Flow Diagram */}
         <div className="grid grid-cols-1 sm:grid-cols-5 gap-2 pt-1 text-center">
           {[
-            { step: '1', title: 'SITE & BOREHOLES', desc: 'Location, RL & Depths', color: 'border-blue-400/40 bg-blue-500/10 text-blue-200' },
+            { step: '1', title: 'SITE & BOREHOLES', desc: 'Location, RL & Depths', color: 'border-amber-400/40 bg-amber-500/10 text-amber-200' },
             { step: '2', title: 'SOIL PROFILE', desc: 'Layers, SPT & Shear', color: 'border-amber-400/40 bg-amber-500/10 text-amber-200' },
             { step: '3', title: 'FOUNDATION', desc: 'SBC, Settlement & Water', color: 'border-emerald-400/40 bg-emerald-500/10 text-emerald-200' },
             { step: '4', title: 'CONSTRUCTION RISKS', desc: 'Water, Rock & Shoring', color: 'border-rose-400/40 bg-rose-500/10 text-rose-200' },
@@ -122,7 +122,7 @@ export const FiveLayersAndPipelineView: React.FC<FiveLayersAndPipelineViewProps>
       <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-xs space-y-6">
         <div className="flex items-center justify-between border-b border-slate-100 pb-3">
           <div className="flex items-center gap-2">
-            <div className="p-2 bg-indigo-50 text-indigo-700 rounded-xl">
+            <div className="p-2 bg-slate-50 text-slate-700 rounded-xl">
               <Workflow className="w-4 h-4" />
             </div>
             <div>
@@ -143,7 +143,7 @@ export const FiveLayersAndPipelineView: React.FC<FiveLayersAndPipelineViewProps>
             <div className="bg-slate-50/70 border border-slate-200 rounded-xl p-4 space-y-3">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
-                  <Building2 className="w-3.5 h-3.5 text-indigo-600" />
+                  <Building2 className="w-3.5 h-3.5 text-slate-600" />
                   Foundation Selection & Validation
                 </span>
                 <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
@@ -160,7 +160,7 @@ export const FiveLayersAndPipelineView: React.FC<FiveLayersAndPipelineViewProps>
                 </div>
                 <div className="p-2.5 bg-white rounded-lg border border-slate-200/80">
                   <span className="text-[10px] text-slate-500 block">Est. Contact Stress</span>
-                  <span className="font-bold text-indigo-700">{fValidation.estimated_contact_pressure_kpa} kPa</span>
+                  <span className="font-bold text-slate-700">{fValidation.estimated_contact_pressure_kpa} kPa</span>
                 </div>
                 <div className="p-2.5 bg-white rounded-lg border border-slate-200/80">
                   <span className="text-[10px] text-slate-500 block">Allowable Bearing (SBC)</span>
@@ -237,7 +237,7 @@ export const FiveLayersAndPipelineView: React.FC<FiveLayersAndPipelineViewProps>
               <button
                 onClick={handleSyncBOQ}
                 disabled={isSyncingBOQ}
-                className="px-3 py-1.5 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-bold border border-indigo-200 flex items-center gap-1.5 transition-colors"
+                className="px-3 py-1.5 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-700 text-xs font-bold border border-slate-200 flex items-center gap-1.5 transition-colors"
               >
                 <Database className="w-3 h-3" />
                 <span>Sync with Project BOQ Table</span>
@@ -339,7 +339,7 @@ export const FiveLayersAndPipelineView: React.FC<FiveLayersAndPipelineViewProps>
                         <span className="font-medium text-slate-800 block leading-tight truncate">{m.equipment_name}</span>
                         <span className="text-[10px] text-slate-400 block leading-tight truncate">{m.role}</span>
                       </div>
-                      <span className="font-mono font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded text-[11px] shrink-0">
+                      <span className="font-mono font-bold text-slate-700 bg-slate-50 px-2 py-0.5 rounded text-[11px] shrink-0">
                         {m.quantity} Unit{m.quantity > 1 ? 's' : ''}
                       </span>
                     </div>
@@ -420,8 +420,8 @@ export const FiveLayersAndPipelineView: React.FC<FiveLayersAndPipelineViewProps>
           {/* Layer 1 */}
           <div className="bg-white border border-slate-200 rounded-xl p-4 space-y-3 shadow-2xs">
             <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-              <span className="text-xs font-bold text-blue-900 font-mono flex items-center gap-1.5">
-                <Drill className="w-4 h-4 text-blue-600" />
+              <span className="text-xs font-bold text-amber-900 font-mono flex items-center gap-1.5">
+                <Drill className="w-4 h-4 text-amber-600" />
                 LAYER 1: SITE & BOREHOLES
               </span>
               <button
@@ -439,7 +439,7 @@ export const FiveLayersAndPipelineView: React.FC<FiveLayersAndPipelineViewProps>
               </div>
               <div className="flex justify-between py-1 border-b border-slate-100">
                 <span className="text-slate-500">Boreholes Identified:</span>
-                <span className="font-mono font-bold text-blue-700">{l1.boreholes_count} boreholes</span>
+                <span className="font-mono font-bold text-amber-700">{l1.boreholes_count} boreholes</span>
               </div>
               <div className="flex justify-between py-1 border-b border-slate-100">
                 <span className="text-slate-500">Ground Elevation (RL):</span>
@@ -474,7 +474,7 @@ export const FiveLayersAndPipelineView: React.FC<FiveLayersAndPipelineViewProps>
               </div>
               <div className="flex justify-between py-1 border-b border-slate-100">
                 <span className="text-slate-500">Rock Formation:</span>
-                <span className="font-bold text-cyan-800">{l2.rock_properties?.rock_type || 'Bedrock'}</span>
+                <span className="font-bold text-teal-800">{l2.rock_properties?.rock_type || 'Bedrock'}</span>
               </div>
             </div>
           </div>

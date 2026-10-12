@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   Layers,
   CalendarDays,
@@ -16,12 +16,20 @@ import {
   ShieldCheck,
   XCircle,
   HardHat,
-  CheckCheck
+  CheckCheck,
+  ClipboardList
 } from 'lucide-react';
 import { GanttChart } from '../components/GanttChart';
 import { PMActivitySectionValidation } from '../components/PMActivitySectionValidation';
+import { DailyTasksHub } from '../components/DailyTasksHub';
+import { ParallelActivityPlan } from '../components/ParallelActivityPlan';
 import { Activity, ActivityDependency, Project, User } from '../types';
 import { apiClient } from '../api/client';
+import {
+  compareActivitiesByBaseline,
+  getBriefActivityExplanation,
+  isStructureOrHandoverActivity,
+} from '../utils/activityPresentation';
 
 interface PlanningPageProps {
   project: Project;
@@ -31,7 +39,7 @@ interface PlanningPageProps {
   onOpenAddActivity: () => void;
   onOpenAutoPlan: () => void;
   onRefreshData: () => void;
-  initialSubTab?: 'activities' | 'gantt' | 'dependencies' | 'critical' | 'validation';
+  initialSubTab?: 'activities' | 'daily' | 'parallel' | 'gantt' | 'dependencies' | 'critical' | 'validation';
 }
 
 export const PlanningPage: React.FC<PlanningPageProps> = ({
@@ -44,7 +52,7 @@ export const PlanningPage: React.FC<PlanningPageProps> = ({
   onRefreshData,
   initialSubTab = 'activities',
 }) => {
-  const [subTab, setSubTab] = useState<'activities' | 'gantt' | 'dependencies' | 'critical' | 'validation'>(
+  const [subTab, setSubTab] = useState<'activities' | 'daily' | 'parallel' | 'gantt' | 'dependencies' | 'critical' | 'validation'>(
     initialSubTab
   );
   const [search, setSearch] = useState('');
@@ -53,10 +61,24 @@ export const PlanningPage: React.FC<PlanningPageProps> = ({
   const [criticalOnly, setCriticalOnly] = useState(false);
   const [isRescheduling, setIsRescheduling] = useState(false);
 
+  // CRITICAL: Strictly isolate activities and dependencies to current project only
+  const projectActivities = useMemo(() => {
+    return activities.filter((a) => a.project_id === project.id);
+  }, [activities, project.id]);
+
+  const structureHandoverActivities = useMemo(
+    () => projectActivities.filter(isStructureOrHandoverActivity),
+    [projectActivities]
+  );
+
+  const projectDependencies = useMemo(() => {
+    return dependencies.filter((d) => d.project_id === project.id);
+  }, [dependencies, project.id]);
+
   // New dependency form
   const [showAddDep, setShowAddDep] = useState(false);
-  const [predId, setPredId] = useState<number>(activities[0]?.id || 0);
-  const [succId, setSuccId] = useState<number>(activities[1]?.id || 0);
+  const [predId, setPredId] = useState<number>(projectActivities[0]?.id || 0);
+  const [succId, setSuccId] = useState<number>(projectActivities[1]?.id || 0);
   const [depType, setDepType] = useState<string>('FS');
   const [lagDays, setLagDays] = useState<number>(0);
 
@@ -95,23 +117,32 @@ export const PlanningPage: React.FC<PlanningPageProps> = ({
     }
   };
 
-  const filteredActivities = activities.filter((a) => {
-    if (selectedFloor !== 'all' && a.floor !== parseInt(selectedFloor)) return false;
-    if (selectedPhase !== 'all' && a.phase !== selectedPhase) return false;
-    if (criticalOnly && !a.is_critical) return false;
-    if (search && !a.name.toLowerCase().includes(search.toLowerCase())) return false;
-    return true;
-  });
+  const filteredActivities = projectActivities
+    .filter((a) => {
+      if (selectedFloor !== 'all' && a.floor !== parseInt(selectedFloor)) return false;
+      if (selectedPhase !== 'all' && a.phase !== selectedPhase) return false;
+      if (criticalOnly && !a.is_critical) return false;
+      if (search && !a.name.toLowerCase().includes(search.toLowerCase())) return false;
+      return true;
+    })
+    .sort(compareActivitiesByBaseline);
 
-  const ganttTasks = activities.map((a) => ({
+  const ganttTasks = projectActivities.map((a) => ({
     id: a.id,
     name: a.name,
     code: a.code,
     phase: a.phase,
     tower: a.tower,
     floor: a.floor,
+    baseline_task_id: a.baseline_task_id,
+    brief_explanation: getBriefActivityExplanation(a),
     start: a.start_date,
     end: a.end_date,
+    baseline_start: a.baseline_start_date,
+    baseline_end: a.baseline_end_date,
+    actual_start: a.actual_start_date,
+    actual_end: a.actual_end_date,
+    work_package: a.work_package,
     duration: a.planned_duration,
     progress: a.progress_percent,
     status: a.status,
@@ -121,7 +152,7 @@ export const PlanningPage: React.FC<PlanningPageProps> = ({
     required_labour: a.required_labour,
   }));
 
-  const ganttLinks = dependencies.map((d) => ({
+  const ganttLinks = projectDependencies.map((d) => ({
     id: d.id,
     source: d.predecessor_id,
     target: d.successor_id,
@@ -131,17 +162,17 @@ export const PlanningPage: React.FC<PlanningPageProps> = ({
     target_name: d.successor_name || '',
   }));
 
-  const floors = Array.from(new Set(activities.map((a) => a.floor))).sort((a, b) => a - b);
-  const phases = Array.from(new Set(activities.map((a) => a.phase))).filter(Boolean);
+  const floors = Array.from(new Set(projectActivities.map((a) => a.floor))).sort((a, b) => a - b);
+  const phases = Array.from(new Set(projectActivities.map((a) => a.phase))).filter(Boolean);
 
   return (
     <div className="space-y-6">
       {/* Top Action & Sub-Tabs Bar */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-slate-200">
         <div>
-          <h1 className="text-xl font-bold text-slate-900 tracking-wide">PLANNING & SCHEDULING ENGINE</h1>
-          <p className="text-xs text-slate-500">
-            Activity Work-Breakdown, CPM Critical Path Forward/Backward Pass & Interactive Gantt
+          <h1 className="text-xl font-semibold tracking-tight text-slate-900">Planning &amp; scheduling</h1>
+          <p className="mt-1 text-sm text-slate-500">
+            Coordinate work fronts, dependencies, and delivery timelines.
           </p>
         </div>
 
@@ -150,22 +181,22 @@ export const PlanningPage: React.FC<PlanningPageProps> = ({
             onClick={() => setSubTab('validation')}
             className={`px-3.5 py-1.5 rounded-xl border text-xs font-bold flex items-center gap-1.5 transition-all shadow-sm ${
               subTab === 'validation'
-                ? 'bg-brand-600 text-white border-brand-500 shadow-brand-500/20'
+                ? 'bg-amber-700 text-white border-amber-600 shadow-amber-600/20'
                 : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border-emerald-300'
             }`}
           >
             <ShieldCheck className="w-4 h-4 text-emerald-600" />
-            <span>Activity Governance & Verification</span>
-            {activities.filter((a) => !a.final_recorded).length > 0 && (
+            <span>Structure &amp; Handover Governance</span>
+            {structureHandoverActivities.filter((a) => !a.final_recorded).length > 0 && (
               <span className="text-[10px] bg-amber-200 text-amber-900 font-extrabold px-1.5 py-0.2 rounded-full border border-amber-400">
-                {activities.filter((a) => !a.final_recorded).length}
+                {structureHandoverActivities.filter((a) => !a.final_recorded).length}
               </span>
             )}
           </button>
 
           <button
             onClick={onOpenAutoPlan}
-            className="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-brand-600 to-indigo-600 hover:from-brand-500 hover:to-indigo-500 text-white text-xs font-bold shadow-md shadow-brand-500/20 flex items-center gap-1.5 transition-all"
+            className="px-3.5 py-1.5 rounded-xl bg-amber-700 hover:bg-amber-800 text-white text-xs font-bold shadow-md shadow-amber-900/20 flex items-center gap-1.5 transition-all"
           >
             <Wand2 className="w-4 h-4" />
             <span>Auto Plan Engine</span>
@@ -175,7 +206,7 @@ export const PlanningPage: React.FC<PlanningPageProps> = ({
             onClick={onOpenAddActivity}
             className="px-3.5 py-1.5 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-800 border border-slate-200 text-xs font-semibold flex items-center gap-1.5 transition-all shadow-sm"
           >
-            <Plus className="w-4 h-4 text-brand-400" />
+            <Plus className="w-4 h-4 text-amber-700" />
             <span>Add Activity</span>
           </button>
 
@@ -193,20 +224,22 @@ export const PlanningPage: React.FC<PlanningPageProps> = ({
       {/* Sub-Navigation Tabs */}
       <div className="flex items-center gap-2 border-b border-slate-200">
         {[
-          { id: 'activities', label: 'Activities Hierarchy', icon: Layers, count: activities.length },
+          { id: 'activities', label: 'Activities Hierarchy', icon: Layers, count: projectActivities.length },
+          { id: 'daily', label: 'Daily Tasks & Requirements', icon: ClipboardList },
+          { id: 'parallel', label: 'Parallel plan', icon: Network },
           {
             id: 'validation',
-            label: 'Multi-Tier Governance & Verification (YES/NO)',
+            label: 'Structure & Handover Governance',
             icon: ShieldCheck,
-            count: activities.filter((a) => !a.final_recorded).length,
+            count: structureHandoverActivities.filter((a) => !a.final_recorded).length,
           },
           { id: 'gantt', label: 'Interactive Gantt Chart', icon: CalendarDays },
-          { id: 'dependencies', label: 'Dependency Graph & Logic', icon: Network, count: dependencies.length },
+          { id: 'dependencies', label: 'Dependency Graph & Logic', icon: Network, count: projectDependencies.length },
           {
             id: 'critical',
             label: 'Critical Path Analysis',
             icon: AlertTriangle,
-            count: activities.filter((a) => a.is_critical).length,
+            count: projectActivities.filter((a) => a.is_critical).length,
           },
         ].map((tab) => {
           const Icon = tab.icon;
@@ -217,11 +250,11 @@ export const PlanningPage: React.FC<PlanningPageProps> = ({
               onClick={() => setSubTab(tab.id as any)}
               className={`flex items-center gap-2 px-4 py-2.5 text-xs font-semibold border-b-2 transition-all ${
                 isActive
-                  ? 'border-brand-500 text-slate-900 bg-slate-50'
+                  ? 'border-amber-600 text-slate-900 bg-amber-50'
                   : 'border-transparent text-slate-500 hover:text-slate-900 hover:bg-slate-50'
               }`}
             >
-              <Icon className={`w-4 h-4 ${isActive ? 'text-brand-600' : 'text-slate-500'}`} />
+              <Icon className={`w-4 h-4 ${isActive ? 'text-amber-700' : 'text-slate-500'}`} />
               <span>{tab.label}</span>
               {tab.count !== undefined && (
                 <span className="text-[10px] bg-slate-100 text-slate-600 px-1.5 py-0.2 rounded-full border border-slate-200">
@@ -246,7 +279,7 @@ export const PlanningPage: React.FC<PlanningPageProps> = ({
                   placeholder="Search activities or package..."
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
-                  className="bg-slate-50 border border-slate-200 rounded-lg pl-9 pr-3 py-1.5 text-slate-800 placeholder-slate-500 focus:outline-none focus:border-brand-500 w-64"
+                  className="bg-slate-50 border border-slate-200 rounded-lg pl-9 pr-3 py-1.5 text-slate-800 placeholder-slate-500 focus:outline-none focus:border-amber-500 w-64"
                 />
               </div>
 
@@ -297,7 +330,7 @@ export const PlanningPage: React.FC<PlanningPageProps> = ({
           {project.stage_engineers && Object.keys(project.stage_engineers).length > 0 && (
             <div className="p-3 bg-white rounded-xl border border-slate-200 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
               <div className="flex items-center gap-2">
-                <div className="w-6 h-6 rounded-md bg-brand-50 border border-brand-200 flex items-center justify-center text-brand-600">
+                <div className="w-6 h-6 rounded-md bg-amber-50 border border-amber-200 flex items-center justify-center text-amber-700">
                   <HardHat className="w-3.5 h-3.5" />
                 </div>
                 <div className="text-xs">
@@ -322,7 +355,7 @@ export const PlanningPage: React.FC<PlanningPageProps> = ({
                       onClick={() => setSelectedPhase(stg)}
                       className={`text-[10px] px-2 py-0.5 rounded cursor-pointer transition-all border font-medium ${
                         list.length > 0
-                          ? 'bg-slate-50 hover:bg-brand-50 text-slate-700 hover:text-brand-800 border-slate-200 hover:border-brand-300'
+                          ? 'bg-slate-50 hover:bg-amber-50 text-slate-700 hover:text-amber-900 border-slate-200 hover:border-amber-300'
                           : 'bg-slate-50 text-slate-400 border-slate-200 opacity-60'
                       }`}
                     >
@@ -341,11 +374,11 @@ export const PlanningPage: React.FC<PlanningPageProps> = ({
                 <thead className="bg-slate-50 text-slate-500 font-semibold uppercase tracking-wider">
                   <tr>
                     <th className="py-3 px-3">Code / ID</th>
-                    <th className="py-3 px-4">Activity Name</th>
+                    <th className="py-3 px-4">Activity &amp; Brief Explanation</th>
                     <th className="py-3 px-3">Phase / Package</th>
                     <th className="py-3 px-3">Tower / Floor</th>
                     <th className="py-3 px-3">Duration</th>
-                    <th className="py-3 px-3">Dates (CPM)</th>
+                    <th className="py-3 px-3">Baseline / Live Dates</th>
                     <th className="py-3 px-3">Progress</th>
                     <th className="py-3 px-3">Float (TF/FF)</th>
                     <th className="py-3 px-3">Status</th>
@@ -363,12 +396,15 @@ export const PlanningPage: React.FC<PlanningPageProps> = ({
                     >
                       <td className="py-3 px-3 font-mono text-[11px] text-slate-500">{a.code || `ACT-${a.id}`}</td>
                       <td className="py-3 px-4">
-                        <div className="font-semibold text-white flex items-center gap-1.5">
+                        <div className="font-semibold text-slate-900 flex items-center gap-1.5">
                           {a.is_critical && (
                             <span className="w-1.5 h-1.5 rounded-full bg-rose-500 flex-shrink-0 animate-pulse" />
                           )}
                           {a.name}
                         </div>
+                        <p className="mt-1 max-w-lg text-[11px] leading-relaxed text-slate-600">
+                          {getBriefActivityExplanation(a)}
+                        </p>
                         <div className="text-[10px] text-slate-500">
                           Qty: {a.quantity} {a.unit} • Labour: {a.required_labour} workers
                         </div>
@@ -377,14 +413,30 @@ export const PlanningPage: React.FC<PlanningPageProps> = ({
                         <span className="px-2 py-0.5 rounded bg-slate-50 text-slate-700 border border-slate-200 text-[10px]">
                           {a.phase}
                         </span>
+                        <div className="mt-1 text-[11px] text-slate-500">{a.work_package || a.category || 'Scope not assigned'}</div>
                       </td>
                       <td className="py-3 px-3 text-slate-700">
                         {a.tower} • {a.floor === 0 ? 'Ground' : `Floor ${a.floor}`}
                       </td>
                       <td className="py-3 px-3 font-mono">{a.planned_duration}d</td>
-                      <td className="py-3 px-3 font-mono text-[11px] text-slate-500">
-                        <div>{new Date(a.start_date).toLocaleDateString()}</div>
-                        <div className="text-[10px] text-slate-500">to {new Date(a.end_date).toLocaleDateString()}</div>
+                      <td className="py-3 px-3 font-mono text-[11px]">
+                        {a.baseline_start_date && a.baseline_end_date ? (
+                          <>
+                            <div className="font-semibold text-amber-800">
+                              {new Date(a.baseline_start_date).toLocaleDateString()} – {new Date(a.baseline_end_date).toLocaleDateString()}
+                            </div>
+                            <div className="mt-1 text-[10px] text-slate-500">
+                              Live {new Date(a.start_date).toLocaleDateString()} – {new Date(a.end_date).toLocaleDateString()}
+                            </div>
+                          </>
+                        ) : (
+                          <>
+                            <div className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">No PDF baseline dates</div>
+                            <div className="mt-1 text-slate-700">
+                              {new Date(a.start_date).toLocaleDateString()} – {new Date(a.end_date).toLocaleDateString()}
+                            </div>
+                          </>
+                        )}
                       </td>
                       <td className="py-3 px-3">
                         <div className="w-20">
@@ -399,7 +451,7 @@ export const PlanningPage: React.FC<PlanningPageProps> = ({
                                   ? 'bg-emerald-500'
                                   : a.status === 'DELAYED'
                                   ? 'bg-rose-500'
-                                  : 'bg-brand-500'
+                                  : 'bg-amber-500'
                               }`}
                             />
                           </div>
@@ -422,7 +474,7 @@ export const PlanningPage: React.FC<PlanningPageProps> = ({
                               : a.status === 'DELAYED'
                               ? 'bg-rose-500/20 text-rose-400 border border-rose-500/30'
                               : a.status === 'IN_PROGRESS'
-                              ? 'bg-brand-500/20 text-brand-400 border border-brand-500/30'
+                              ? 'bg-amber-50 text-amber-900 border border-amber-200'
                               : 'bg-slate-50 text-slate-500 border border-slate-200'
                           }`}
                         >
@@ -501,6 +553,10 @@ export const PlanningPage: React.FC<PlanningPageProps> = ({
         <GanttChart tasks={ganttTasks} links={ganttLinks} />
       )}
 
+      {subTab === 'parallel' && (
+        <ParallelActivityPlan activities={projectActivities} dependencies={projectDependencies} />
+      )}
+
       {/* Sub-tab 3: Dependencies */}
       {subTab === 'dependencies' && (
         <div className="space-y-5">
@@ -513,7 +569,7 @@ export const PlanningPage: React.FC<PlanningPageProps> = ({
             </div>
             <button
               onClick={() => setShowAddDep(true)}
-              className="px-3.5 py-1.5 rounded-lg bg-brand-600 hover:bg-brand-500 text-white text-xs font-semibold flex items-center gap-1.5 transition-all shadow-md"
+              className="px-3.5 py-1.5 rounded-lg bg-amber-700 hover:bg-amber-800 text-white text-xs font-semibold flex items-center gap-1.5 transition-all shadow-md"
             >
               <Plus className="w-4 h-4" />
               <span>Add Dependency Link</span>
@@ -588,7 +644,7 @@ export const PlanningPage: React.FC<PlanningPageProps> = ({
                     />
                     <button
                       type="submit"
-                      className="px-4 py-2 rounded-lg bg-brand-600 hover:bg-brand-500 text-white font-bold"
+                      className="px-4 py-2 rounded-lg bg-amber-700 hover:bg-amber-800 text-white font-bold"
                     >
                       Save
                     </button>
@@ -617,7 +673,7 @@ export const PlanningPage: React.FC<PlanningPageProps> = ({
                     <td className="py-3 px-3 font-mono text-slate-500">{d.id}</td>
                     <td className="py-3 px-4 font-semibold text-slate-900">{d.predecessor_name}</td>
                     <td className="py-3 px-3 text-center">
-                      <span className="px-2.5 py-0.5 rounded-full font-mono font-bold bg-brand-500/20 text-brand-400 border border-brand-500/30 text-[10px]">
+                      <span className="px-2.5 py-0.5 rounded-full font-mono font-bold bg-amber-50 text-amber-900 border border-amber-200 text-[10px]">
                         {d.dependency_type}
                       </span>
                     </td>
@@ -692,7 +748,7 @@ export const PlanningPage: React.FC<PlanningPageProps> = ({
                           ? 'bg-emerald-500/20 text-emerald-400'
                           : a.status === 'DELAYED'
                           ? 'bg-rose-500/20 text-rose-400'
-                          : 'bg-brand-500/20 text-brand-400'
+                          : 'bg-amber-50 text-amber-900'
                       }`}
                     >
                       {a.status}
@@ -704,11 +760,20 @@ export const PlanningPage: React.FC<PlanningPageProps> = ({
         </div>
       )}
 
+      {/* Sub-tab: Daily Tasks & Requirements */}
+      {subTab === 'daily' && (
+        <DailyTasksHub
+          project={project}
+          onOpenLogProgress={() => {}}
+          onRefreshData={onRefreshData}
+        />
+      )}
+
       {/* Sub-tab 5: PM Section Validation */}
       {subTab === 'validation' && (
         <PMActivitySectionValidation
           project={project}
-          activities={activities}
+          activities={structureHandoverActivities}
           currentUser={currentUser}
           onRefreshData={onRefreshData}
         />

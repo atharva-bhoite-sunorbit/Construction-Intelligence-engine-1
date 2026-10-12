@@ -18,10 +18,12 @@ should be validated against the contractor's actual fleet performance.
 """
 import io
 import re
-import html
 import math
+import csv
 import zipfile
+import xml.etree.ElementTree as ET
 from datetime import date, timedelta
+from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 # ---------------------------------------------------------------------------
@@ -160,48 +162,184 @@ def _clamp(v: float, lo: float, hi: float) -> float:
 # Text extraction
 # ---------------------------------------------------------------------------
 
-def extract_text_from_file(content: bytes, filename: str) -> Tuple[str, List[str]]:
-    """Extracts plain text from PDF / DOCX / XLSX / TXT / CSV uploads."""
-    warnings: List[str] = []
-    name = (filename or "").lower()
-    text = ""
+SUPPORTED_GEOTECH_REPORT_EXTENSIONS = {
+    ".pdf", ".txt", ".csv", ".docx", ".xlsx", ".xlsm", ".xls",
+    ".png", ".jpg", ".jpeg", ".tif", ".tiff", ".bmp",
+}
+_GEOTECHNICAL_REPORT_TERMS = re.compile(
+    r"\b(?:geotechnical|geotech|boreholes?|borelogs?|subsurface|stratigraphy|"
+    r"ground\s*water|groundwater|soil|foundation|bearing\s+capacity|"
+    r"spt|rqd|ucs|basalt|granite|sand|clay|silt|bedrock|rock\s+core|"
+    r"liquefaction|settlement|pile\s+foundation)\b",
+    re.IGNORECASE,
+)
 
+
+def validate_geotechnical_report_text(text: str) -> None:
+    if len(text.strip()) < 30:
+        raise ValueError(
+            "Too little text could be extracted to analyze this report. "
+            "For a scanned PDF or image, check scan quality and OCR, or upload a searchable copy."
+        )
+    if not _GEOTECHNICAL_REPORT_TERMS.search(text):
+        raise ValueError(
+            "No recognizable geotechnical content was found. Upload a geotechnical investigation, "
+            "borelog, soil report, or a spreadsheet containing subsurface data."
+        )
+
+
+def _decode_text_file(content: bytes) -> str:
+    for encoding in ("utf-8-sig", "utf-16", "cp1252"):
+        try:
+            return content.decode(encoding)
+        except UnicodeDecodeError:
+            continue
+    raise ValueError("The text file encoding is not supported. Save it as UTF-8 and try again.")
+
+
+def _extract_docx_text(content: bytes) -> str:
     try:
-        if name.endswith(".pdf") or content[:5] == b"%PDF-":
-            from backend.app.services.geotech_intel.extractor import extract_pages_from_pdf
-            pages = extract_pages_from_pdf(content)
-            text = "\n".join(pages)
-            if len(text.strip()) < 60:
-                warnings.append(
-                    "Very little text could be extracted from this PDF - it is probably a scanned image. "
-                    "Paste the borelog text manually for accurate strata detection."
-                )
-        elif name.endswith(".docx"):
-            with zipfile.ZipFile(io.BytesIO(content)) as zf:
-                xml = zf.read("word/document.xml").decode("utf-8", errors="ignore")
-            xml = re.sub(r"</w:p>", "\n", xml)
-            xml = re.sub(r"<w:tab/>", "\t", xml)
-            text = html.unescape(re.sub(r"<[^>]+>", "", xml))
-        elif name.endswith((".xlsx", ".xlsm")):
-            import openpyxl
-            wb = openpyxl.load_workbook(io.BytesIO(content), data_only=True, read_only=True)
-            lines = []
-            for ws in wb.worksheets:
-                for row in ws.iter_rows(values_only=True):
-                    cells = [str(c) for c in row if c is not None and str(c).strip()]
-                    if cells:
-                        lines.append(" | ".join(cells))
-            text = "\n".join(lines)
-        else:
-            for enc in ("utf-8", "utf-16", "latin-1"):
-                try:
-                    text = content.decode(enc)
-                    break
-                except UnicodeDecodeError:
-                    continue
-    except Exception as exc:  # pragma: no cover - defensive
-        warnings.append(f"Could not fully read the file ({exc}). Results are based on partially extracted text.")
+        with zipfile.ZipFile(io.BytesIO(content)) as archive:
+            names = [
+                name for name in archive.namelist()
+                if name == "word/document.xml"
+                or re.fullmatch(r"word/(?:header|footer)\d+\.xml", name)
+            ]
+            if "word/document.xml" not in names:
+                raise ValueError("The DOCX file does not contain a readable Word document.")
 
+            paragraphs: List[str] = []
+            for name in names:
+                root = ET.fromstring(archive.read(name))
+                for paragraph in root.iter():
+                    if not paragraph.tag.endswith("}p"):
+                        continue
+                    parts: List[str] = []
+                    for element in paragraph.iter():
+                        if element.tag.endswith("}t") and element.text:
+                            parts.append(element.text)
+                        elif element.tag.endswith("}tab"):
+                            parts.append("\t")
+                    value = "".join(parts).strip()
+                    if value:
+                        paragraphs.append(value)
+            return "\n".join(paragraphs)
+    except (zipfile.BadZipFile, KeyError, ET.ParseError) as exc:
+        raise ValueError("The DOCX file is damaged or could not be read.") from exc
+
+
+def _extract_spreadsheet_text(content: bytes, extension: str) -> str:
+    lines: List[str] = []
+    if extension == ".xls":
+        try:
+            import xlrd
+        except ImportError as exc:
+            raise ValueError("Legacy .xls support is unavailable. Save the workbook as .xlsx and upload it again.") from exc
+        try:
+            workbook = xlrd.open_workbook(file_contents=content, on_demand=True)
+            for sheet in workbook.sheets():
+                lines.append(f"Worksheet: {sheet.name}")
+                for row_index in range(sheet.nrows):
+                    cells = [
+                        str(sheet.cell_value(row_index, column_index)).strip()
+                        for column_index in range(sheet.ncols)
+                    ]
+                    if any(cells):
+                        lines.append(" | ".join(cells))
+            workbook.release_resources()
+        except Exception as exc:
+            raise ValueError("The XLS workbook is damaged or could not be read.") from exc
+    else:
+        try:
+            import openpyxl
+            workbook = openpyxl.load_workbook(
+                io.BytesIO(content), data_only=True, read_only=True
+            )
+            try:
+                for sheet in workbook.worksheets:
+                    lines.append(f"Worksheet: {sheet.title}")
+                    for row in sheet.iter_rows(values_only=True):
+                        cells = [
+                            str(cell).strip()
+                            for cell in row
+                            if cell is not None and str(cell).strip()
+                        ]
+                        if cells:
+                            lines.append(" | ".join(cells))
+            finally:
+                workbook.close()
+        except Exception as exc:
+            raise ValueError("The Excel workbook is damaged or could not be read.") from exc
+    return "\n".join(lines)
+
+
+def _extract_csv_text(content: bytes) -> str:
+    decoded = _decode_text_file(content)
+    sample = decoded[:8192]
+    try:
+        dialect = csv.Sniffer().sniff(sample, delimiters=",;\t|")
+    except csv.Error:
+        dialect = csv.excel
+    rows = csv.reader(io.StringIO(decoded), dialect)
+    return "\n".join(
+        " | ".join(cell.strip() for cell in row)
+        for row in rows
+        if any(cell.strip() for cell in row)
+    )
+
+
+def _extract_image_text(content: bytes) -> str:
+    try:
+        import numpy as np
+        from PIL import Image
+        from rapidocr_onnxruntime import RapidOCR
+
+        with Image.open(io.BytesIO(content)) as source:
+            image = source.convert("RGB")
+            if max(image.size) > 2400:
+                image.thumbnail((2400, 2400), Image.Resampling.LANCZOS)
+            result, _ = RapidOCR()(np.asarray(image))
+    except ImportError as exc:
+        raise ValueError("Image OCR is unavailable. Install the geotechnical OCR dependencies and retry.") from exc
+    except Exception as exc:
+        raise ValueError("The uploaded image could not be read or OCR-processed.") from exc
+
+    return "\n".join(line[1] for line in (result or []) if len(line) > 1 and line[1].strip())
+
+
+def extract_pages_from_file(content: bytes, filename: str) -> List[str]:
+    """Extracts page/sheet-oriented text from supported report formats."""
+    if not content:
+        raise ValueError("The uploaded report is empty.")
+
+    extension = Path(filename or "").suffix.lower()
+    if content.startswith(b"%PDF-"):
+        extension = ".pdf"
+    if extension not in SUPPORTED_GEOTECH_REPORT_EXTENSIONS:
+        supported = ", ".join(sorted(SUPPORTED_GEOTECH_REPORT_EXTENSIONS))
+        raise ValueError(f"Unsupported report format '{extension or 'unknown'}'. Supported formats: {supported}.")
+
+    if extension == ".pdf":
+        from backend.app.services.geotech_intel.extractor import extract_pages_from_pdf
+        return extract_pages_from_pdf(content)
+    if extension == ".docx":
+        return [_extract_docx_text(content)]
+    if extension in {".xlsx", ".xlsm", ".xls"}:
+        return [_extract_spreadsheet_text(content, extension)]
+    if extension == ".csv":
+        return [_extract_csv_text(content)]
+    if extension in {".png", ".jpg", ".jpeg", ".tif", ".tiff", ".bmp"}:
+        return [_extract_image_text(content)]
+    return [_decode_text_file(content)]
+
+
+def extract_text_from_file(content: bytes, filename: str) -> Tuple[str, List[str]]:
+    """Extracts text from searchable/scanned PDF, DOCX, Excel, image, TXT, or CSV."""
+    pages = extract_pages_from_file(content, filename)
+    text = "\n".join(page for page in pages if page and page.strip())
+    warnings = []
+    if not text.strip():
+        warnings.append("No readable text was found. For scanned reports, verify OCR and image quality.")
     return text, warnings
 
 

@@ -44,6 +44,11 @@ export const WeatherSoilModal: React.FC<WeatherSoilModalProps> = ({
   const [weatherCondition, setWeatherCondition] = useState<string>('High Wind');
   const [humidity, setHumidity] = useState<number>(60.0);
   const [rainfall, setRainfall] = useState<number>(0.0);
+  const [weatherReportFileName, setWeatherReportFileName] = useState<string>('');
+  const [weatherReportRawText, setWeatherReportRawText] = useState<string>('');
+  const [weatherReportError, setWeatherReportError] = useState<string | null>(null);
+  const [weatherReportSummary, setWeatherReportSummary] = useState<string | null>(null);
+  const [weatherReportWarnings, setWeatherReportWarnings] = useState<string[]>([]);
 
   // Soil Report Form State
   const [soilType, setSoilType] = useState<string>('Silty Clay / Cohesive Strata');
@@ -59,6 +64,7 @@ export const WeatherSoilModal: React.FC<WeatherSoilModalProps> = ({
   const [activeTab, setActiveTab] = useState<'input' | 'analysis'>('input');
   const [loading, setLoading] = useState<boolean>(false);
   const [isParsingReport, setIsParsingReport] = useState<boolean>(false);
+  const [isParsingWeatherReport, setIsParsingWeatherReport] = useState<boolean>(false);
   const [currentGeoDetails, setCurrentGeoDetails] = useState<any>(null);
   const [analysisResult, setAnalysisResult] = useState<EnvironmentalAnalysis | null>(null);
 
@@ -73,6 +79,7 @@ export const WeatherSoilModal: React.FC<WeatherSoilModalProps> = ({
             setWeatherCondition(res.weather_condition);
             setHumidity(res.humidity_percent);
             setRainfall(res.rainfall_mm);
+            setWeatherReportFileName(res.weather_report_filename || '');
             setSoilType(res.soil_type);
             setSbc(res.safe_bearing_capacity_kpa);
             setMoisture(res.moisture_content_percent);
@@ -142,6 +149,34 @@ export const WeatherSoilModal: React.FC<WeatherSoilModalProps> = ({
     }
   };
 
+  const handleWeatherReportUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setWeatherReportError(null);
+    setWeatherReportSummary(null);
+    setWeatherReportWarnings([]);
+    setIsParsingWeatherReport(true);
+    try {
+      const parsed = await apiClient.parseWeatherReport(file);
+      if (parsed.temperature_c !== null) setTemperature(parsed.temperature_c);
+      if (parsed.wind_speed_kmh !== null) setWindSpeed(parsed.wind_speed_kmh);
+      if (parsed.weather_condition) setWeatherCondition(parsed.weather_condition);
+      if (parsed.humidity_percent !== null) setHumidity(parsed.humidity_percent);
+      if (parsed.rainfall_mm !== null) setRainfall(parsed.rainfall_mm);
+      setWeatherReportFileName(file.name);
+      setWeatherReportRawText(parsed.raw_text);
+      setWeatherReportSummary(parsed.summary);
+      setWeatherReportWarnings(parsed.warnings);
+    } catch (err: any) {
+      console.error('Error parsing weather report:', err);
+      setWeatherReportError(err.response?.data?.detail || 'Could not read this weather report. Try a searchable PDF, DOCX, spreadsheet, or text report.');
+      e.target.value = '';
+    } finally {
+      setIsParsingWeatherReport(false);
+    }
+  };
+
   // Dynamic Re-parse of Borelog Text
   const handleReanalyzeText = async () => {
     if (!reportRawText.trim()) return;
@@ -205,6 +240,8 @@ Recommendations: Subgrade compaction is below 95% specification; requires vibrat
         weather_condition: weatherCondition,
         humidity_percent: Number(humidity),
         rainfall_mm: Number(rainfall),
+        weather_report_filename: weatherReportFileName || undefined,
+        weather_report_raw_text: weatherReportRawText || undefined,
         soil_type: soilType,
         safe_bearing_capacity_kpa: Number(sbc),
         moisture_content_percent: Number(moisture),
@@ -238,7 +275,7 @@ Recommendations: Subgrade compaction is below 95% specification; requires vibrat
         {/* Header */}
         <div className="flex items-center justify-between pb-4 border-b border-slate-200">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-brand-600 to-indigo-600 flex items-center justify-center text-white shadow-md shadow-brand-500/20">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-brand-600 to-slate-600 flex items-center justify-center text-white shadow-md shadow-brand-500/20">
               <Compass className="w-5 h-5" />
             </div>
             <div>
@@ -323,8 +360,56 @@ Recommendations: Subgrade compaction is below 95% specification; requires vibrat
             {/* Section 1: Weather Parameters */}
             <div className="space-y-3">
               <div className="flex items-center gap-2 text-xs font-bold text-slate-900 uppercase tracking-wider">
-                <Wind className="w-4 h-4 text-cyan-600" />
+                <Wind className="w-4 h-4 text-teal-600" />
                 <span>1. Site Weather & Atmospheric Conditions</span>
+              </div>
+
+              <div className="rounded-2xl border border-amber-200 bg-amber-50/50 p-4">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="flex items-start gap-3">
+                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white text-amber-700 shadow-sm ring-1 ring-amber-100">
+                      <CloudRain className="h-4 w-4" />
+                    </span>
+                    <div>
+                      <div className="text-sm font-semibold text-slate-900">Analyze a weather report</div>
+                      <p className="mt-0.5 max-w-2xl text-xs leading-5 text-slate-600">
+                        Upload a site observation or forecast report. Extracted readings fill the weather fields below; review them and run the construction-impact analysis.
+                      </p>
+                    </div>
+                  </div>
+                  <label className="inline-flex shrink-0 cursor-pointer items-center justify-center gap-2 rounded-xl border border-amber-300 bg-white px-3.5 py-2.5 text-xs font-semibold text-amber-900 shadow-sm transition hover:bg-amber-100/60 focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-amber-600">
+                    {isParsingWeatherReport ? (
+                      <RefreshCw className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Upload className="h-4 w-4" />
+                    )}
+                    {isParsingWeatherReport ? 'Reading report…' : 'Add weather report'}
+                    <input
+                      type="file"
+                      accept=".pdf,.txt,.docx,.csv,.xlsx,.xls,.xlsm,.png,.jpg,.jpeg,.tif,.tiff,.bmp"
+                      onChange={handleWeatherReportUpload}
+                      disabled={isParsingWeatherReport}
+                      className="sr-only"
+                    />
+                  </label>
+                </div>
+                {weatherReportFileName && (
+                  <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-slate-700">
+                    <CheckCircle2 className="h-4 w-4 text-emerald-700" />
+                    <span className="font-semibold">{weatherReportFileName}</span>
+                    {weatherReportSummary && <span className="text-slate-500">· {weatherReportSummary}</span>}
+                  </div>
+                )}
+                {weatherReportWarnings.length > 0 && (
+                  <ul className="mt-2 space-y-1 text-xs text-amber-900" aria-live="polite">
+                    {weatherReportWarnings.map((warning) => <li key={warning}>{warning}</li>)}
+                  </ul>
+                )}
+                {weatherReportError && (
+                  <p role="alert" className="mt-3 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-medium text-rose-800">
+                    {weatherReportError}
+                  </p>
+                )}
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-3">
@@ -359,7 +444,7 @@ Recommendations: Subgrade compaction is below 95% specification; requires vibrat
                   <div className="flex justify-between items-center text-xs">
                     <span className="font-semibold text-slate-700">Temperature</span>
                     <span className={`font-mono font-bold ${
-                      temperature >= 38 ? 'text-rose-600' : temperature <= 5 ? 'text-cyan-600' : 'text-slate-800'
+                      temperature >= 38 ? 'text-rose-600' : temperature <= 5 ? 'text-teal-600' : 'text-slate-800'
                     }`}>
                       {temperature} °C
                     </span>
@@ -388,6 +473,7 @@ Recommendations: Subgrade compaction is below 95% specification; requires vibrat
                     <option value="Rain">Rain</option>
                     <option value="Heavy Rain">Heavy Rain</option>
                     <option value="Extreme Heat">Extreme Heat</option>
+                    <option value="Storm">Storm</option>
                     <option value="Thunderstorm">Thunderstorm</option>
                   </select>
                   <span className="text-[10px] text-slate-600">Site prevailing condition</span>
@@ -563,7 +649,7 @@ Recommendations: Subgrade compaction is below 95% specification; requires vibrat
                       type="button"
                       onClick={handleReanalyzeText}
                       disabled={isParsingReport}
-                      className="px-2.5 py-1 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-[11px] font-semibold flex items-center gap-1 border border-indigo-200 transition-colors"
+                      className="px-2.5 py-1 rounded-lg bg-slate-50 hover:bg-slate-100 text-slate-700 text-[11px] font-semibold flex items-center gap-1 border border-slate-200 transition-colors"
                     >
                       <Sparkles className="w-3 h-3" />
                       Re-parse Text Now
@@ -660,7 +746,10 @@ Recommendations: Subgrade compaction is below 95% specification; requires vibrat
                         </span>
                       </div>
                       <p className="text-xs opacity-90 mt-0.5">
-                        Wind: {analysisResult.wind_speed_kmh} km/h • Temp: {analysisResult.temperature_c}°C • Soil: {analysisResult.soil_type} (SBC {analysisResult.safe_bearing_capacity_kpa} kPa)
+                        Wind: {analysisResult.wind_speed_kmh} km/h • Temp: {analysisResult.temperature_c}°C • Rainfall: {analysisResult.rainfall_mm} mm • Soil: {analysisResult.soil_type} (SBC {analysisResult.safe_bearing_capacity_kpa} kPa)
+                        {analysisResult.weather_report_filename && (
+                          <span className="block pt-1 text-[11px] font-medium">Weather source: {analysisResult.weather_report_filename}</span>
+                        )}
                       </p>
                     </div>
                   </div>
@@ -687,7 +776,7 @@ Recommendations: Subgrade compaction is below 95% specification; requires vibrat
                   <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-2">
                     <div className="flex items-center justify-between">
                       <span className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
-                        <Wind className="w-4 h-4 text-cyan-600" />
+                        <Wind className="w-4 h-4 text-teal-600" />
                         Crane & Elevated Lifting
                       </span>
                       <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
@@ -727,7 +816,7 @@ Recommendations: Subgrade compaction is below 95% specification; requires vibrat
                   <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-2">
                     <div className="flex items-center justify-between">
                       <span className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
-                        <Layers className="w-4 h-4 text-indigo-600" />
+                        <Layers className="w-4 h-4 text-slate-600" />
                         Soil Stability & Dewatering
                       </span>
                       <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
@@ -806,7 +895,7 @@ Recommendations: Subgrade compaction is below 95% specification; requires vibrat
                     <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-4">
                       <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-slate-200 gap-2">
                         <div className="flex items-center gap-2">
-                          <div className="p-2 rounded-lg bg-indigo-50 text-indigo-600 border border-indigo-200">
+                          <div className="p-2 rounded-lg bg-slate-50 text-slate-600 border border-slate-200">
                             <FileSpreadsheet className="w-5 h-5" />
                           </div>
                           <div>
@@ -814,7 +903,7 @@ Recommendations: Subgrade compaction is below 95% specification; requires vibrat
                               <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
                                 Detailed Geotechnical Soil Investigation & Test Report Data
                               </h4>
-                              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200">
+                              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-50 text-slate-700 border border-slate-200">
                                 {geoDetails?.report_metadata?.applicable_codes?.slice(0, 2).join(' & ') || 'IS: 1888 & IS: 1498 Standards'}
                               </span>
                             </div>
@@ -836,7 +925,7 @@ Recommendations: Subgrade compaction is below 95% specification; requires vibrat
                       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
                         <div className="p-2.5 rounded-lg bg-white border border-slate-200">
                           <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider block">Net Safe Bearing (SBC)</span>
-                          <div className="text-sm font-bold text-indigo-700 font-mono mt-0.5">{netSbcTon} T/m²</div>
+                          <div className="text-sm font-bold text-slate-700 font-mono mt-0.5">{netSbcTon} T/m²</div>
                           <span className="text-[10px] text-slate-500 font-mono">{netSbcVal.toFixed(1)} kPa (Net)</span>
                         </div>
                         <div className="p-2.5 rounded-lg bg-white border border-slate-200">
@@ -875,14 +964,14 @@ Recommendations: Subgrade compaction is below 95% specification; requires vibrat
                           </thead>
                           <tbody className="divide-y divide-slate-100 font-mono text-[11px]">
                             {investigationPoints.map((pt: any, idx: number) => (
-                              <tr key={idx} className="hover:bg-indigo-50/40 transition-colors">
+                              <tr key={idx} className="hover:bg-slate-50/40 transition-colors">
                                 <td className="px-3 py-2 font-bold text-slate-900 font-sans">{pt.location_id || `Pit-0${idx + 1}`}</td>
                                 <td className="px-3 py-2 text-slate-700">{pt.depth_m !== undefined ? `${Number(pt.depth_m).toFixed(2)} m` : '-'}</td>
-                                <td className="px-3 py-2 font-sans font-medium text-indigo-700 truncate max-w-[200px]" title={pt.soil_description || analysisResult.soil_type}>
+                                <td className="px-3 py-2 font-sans font-medium text-slate-700 truncate max-w-[200px]" title={pt.soil_description || analysisResult.soil_type}>
                                   {pt.soil_description || analysisResult.soil_type}
                                 </td>
                                 <td className="px-3 py-2 text-slate-700">{pt.bulk_density_t_m3 ? `${Number(pt.bulk_density_t_m3).toFixed(2)} T/m³` : '-'}</td>
-                                <td className="px-3 py-2 font-bold text-indigo-700">
+                                <td className="px-3 py-2 font-bold text-slate-700">
                                   {pt.net_sbc_t_m2 ? `${Number(pt.net_sbc_t_m2).toFixed(1)} T/m² (${Number(pt.net_sbc_kpa || (pt.net_sbc_t_m2 * 9.81)).toFixed(1)} kPa)` : `${netSbcTon} T/m² (${netSbcVal.toFixed(1)} kPa)`}
                                 </td>
                                 <td className="px-3 py-2 text-slate-700">
@@ -904,7 +993,7 @@ Recommendations: Subgrade compaction is below 95% specification; requires vibrat
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1">
                         <div className="p-3 bg-white border border-slate-200 rounded-xl space-y-1.5">
                           <div className="text-[11px] font-bold text-slate-800 flex items-center gap-1.5 uppercase tracking-wide">
-                            <Scale className="w-3.5 h-3.5 text-indigo-600" />
+                            <Scale className="w-3.5 h-3.5 text-slate-600" />
                             Grain Size Analysis (IS: 2720 Part IV)
                           </div>
                           <div className="space-y-1 text-xs text-slate-600 font-mono">
@@ -924,7 +1013,7 @@ Recommendations: Subgrade compaction is below 95% specification; requires vibrat
                               <span className="font-sans text-[11px] text-slate-500">Sieve 0.075 mm:</span>
                               <span className="text-slate-800">{grainSize.sieve_0_075mm}</span>
                             </div>
-                            <div className="flex justify-between pt-0.5 font-bold text-indigo-700">
+                            <div className="flex justify-between pt-0.5 font-bold text-slate-700">
                               <span className="font-sans text-[11px]">Silt & Clay (&lt; 0.075mm):</span>
                               <span>{grainSize.clay_and_fines_passing_75u}</span>
                             </div>

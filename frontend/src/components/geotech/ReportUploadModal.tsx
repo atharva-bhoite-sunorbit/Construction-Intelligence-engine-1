@@ -1,6 +1,13 @@
 import React, { useState, useRef } from 'react';
-import { UploadCloud, FileText, CheckCircle2, AlertTriangle, Loader2, X } from 'lucide-react';
+import { UploadCloud, CheckCircle2, AlertTriangle, Loader2, X } from 'lucide-react';
 import { apiClient } from '../../api/client';
+
+const SUPPORTED_EXTENSIONS = [
+  '.pdf', '.docx', '.xlsx', '.xlsm', '.xls', '.txt', '.csv',
+  '.png', '.jpg', '.jpeg', '.tif', '.tiff', '.bmp',
+];
+const MAX_FILE_SIZE = 25 * 1024 * 1024;
+const ACCEPTED_FILE_TYPES = SUPPORTED_EXTENSIONS.join(',');
 
 interface ReportUploadModalProps {
   isOpen: boolean;
@@ -18,36 +25,38 @@ export const ReportUploadModal: React.FC<ReportUploadModalProps> = ({
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [stepIndex, setStepIndex] = useState(0);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   if (!isOpen) return null;
 
-  const steps = [
-    'Report uploaded',
-    'Text extracted',
-    'Boreholes identified',
-    'Geological layers identified',
-    'Groundwater data identified',
-    'Foundation recommendations identified',
-    'Validation completed',
-  ];
+  const selectFile = (file: File) => {
+    const extension = `.${file.name.split('.').pop()?.toLowerCase() ?? ''}`;
+    if (!SUPPORTED_EXTENSIONS.includes(extension)) {
+      setSelectedFile(null);
+      setErrorMsg(`Unsupported file format. Supported formats: ${SUPPORTED_EXTENSIONS.join(', ')}.`);
+      return;
+    }
+    if (file.size > MAX_FILE_SIZE) {
+      setSelectedFile(null);
+      setErrorMsg('File exceeds the maximum upload size of 25 MB.');
+      return;
+    }
+    setSelectedFile(file);
+    setErrorMsg(null);
+  };
 
   const handleFileDrop = (e: React.DragEvent) => {
     e.preventDefault();
     setIsDragging(false);
     if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-      const file = e.dataTransfer.files[0];
-      setSelectedFile(file);
-      setErrorMsg(null);
+      selectFile(e.dataTransfer.files[0]);
     }
   };
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
-      setSelectedFile(e.target.files[0]);
-      setErrorMsg(null);
+      selectFile(e.target.files[0]);
     }
   };
 
@@ -56,36 +65,25 @@ export const ReportUploadModal: React.FC<ReportUploadModalProps> = ({
 
     setIsProcessing(true);
     setErrorMsg(null);
-    setStepIndex(1);
 
     const formData = new FormData();
     formData.append('file', selectedFile);
     formData.append('project_id', String(projectId));
 
     try {
-      // Simulate stepwise checklist progression for realistic user UX
-      const timer1 = setTimeout(() => setStepIndex(2), 600);
-      const timer2 = setTimeout(() => setStepIndex(3), 1200);
-      const timer3 = setTimeout(() => setStepIndex(4), 1800);
-      const timer4 = setTimeout(() => setStepIndex(5), 2400);
-
       const resp = await apiClient.uploadGeotechIntelligence(formData);
-
-      clearTimeout(timer1);
-      clearTimeout(timer2);
-      clearTimeout(timer3);
-      clearTimeout(timer4);
-
-      setStepIndex(7); // all 7 steps completed
-
-      setTimeout(() => {
-        setIsProcessing(false);
-        onUploadSuccess(resp.data);
-        onClose();
-      }, 700);
+      setIsProcessing(false);
+      setSelectedFile(null);
+      onUploadSuccess(resp.data);
+      onClose();
     } catch (err: any) {
       setIsProcessing(false);
-      setErrorMsg(err.response?.data?.detail || err.message || 'Failed to parse geotechnical report.');
+      const detail = err.response?.data?.detail;
+      setErrorMsg(
+        typeof detail === 'string'
+          ? detail
+          : err.message || 'Failed to parse geotechnical report.',
+      );
     }
   };
 
@@ -100,7 +98,7 @@ export const ReportUploadModal: React.FC<ReportUploadModalProps> = ({
             <div>
               <h3 className="text-sm font-bold text-slate-800">Upload Geotechnical Report</h3>
               <p className="text-[11px] text-slate-500">
-                Source-grounded PDF geotechnical report ingestion & parsing
+                Source-grounded geotechnical report extraction
               </p>
             </div>
           </div>
@@ -137,7 +135,7 @@ export const ReportUploadModal: React.FC<ReportUploadModalProps> = ({
                 <input
                   ref={fileInputRef}
                   type="file"
-                  accept=".pdf,.txt"
+                  accept={ACCEPTED_FILE_TYPES}
                   onChange={handleFileSelect}
                   className="hidden"
                 />
@@ -160,10 +158,10 @@ export const ReportUploadModal: React.FC<ReportUploadModalProps> = ({
                 ) : (
                   <div>
                     <span className="text-xs font-bold text-slate-700 block">
-                      Drag & Drop Geotechnical PDF Report here
+                      Drag & drop a geotechnical report here
                     </span>
                     <span className="text-[11px] text-slate-500 block mt-1">
-                      or click to browse from your computer (IS 1892 compliant)
+                      or click to browse: PDF, DOCX, Excel, CSV, TXT, or scanned image (max 25 MB)
                     </span>
                   </div>
                 )}
@@ -185,45 +183,21 @@ export const ReportUploadModal: React.FC<ReportUploadModalProps> = ({
               </div>
             </>
           ) : (
-            /* Processing Animation & Checklist */
+            /* Show the real request state instead of simulated parser milestones. */
             <div className="py-4 space-y-4">
               <div className="text-center space-y-1">
                 <Loader2 className="w-7 h-7 mx-auto text-brand-600 animate-spin" />
                 <h4 className="text-xs font-bold text-slate-800">
-                  Parsing Geotechnical Investigation Report...
+                  Uploading and parsing geotechnical report...
                 </h4>
                 <p className="text-[11px] text-slate-500 font-mono">
                   {selectedFile?.name}
                 </p>
               </div>
 
-              <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-2">
-                {steps.map((step, idx) => {
-                  const isDone = idx < stepIndex;
-                  const isCurrent = idx === stepIndex;
-                  return (
-                    <div key={idx} className="flex items-center gap-2.5 text-xs">
-                      {isDone ? (
-                        <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                      ) : isCurrent ? (
-                        <Loader2 className="w-4 h-4 text-brand-600 animate-spin" />
-                      ) : (
-                        <div className="w-4 h-4 rounded-full border border-slate-300" />
-                      )}
-                      <span
-                        className={
-                          isDone
-                            ? 'font-medium text-slate-800'
-                            : isCurrent
-                            ? 'font-bold text-brand-700'
-                            : 'text-slate-400'
-                        }
-                      >
-                        {step}
-                      </span>
-                    </div>
-                  );
-                })}
+              <div className="flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-slate-50 p-4 text-xs text-slate-600">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                Extracted values are tied to the uploaded report; missing values are left unspecified.
               </div>
             </div>
           )}

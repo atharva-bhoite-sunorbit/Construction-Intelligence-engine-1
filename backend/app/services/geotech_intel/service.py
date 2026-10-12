@@ -8,13 +8,13 @@ from __future__ import annotations
 import json
 import uuid
 import datetime
+import re
 from typing import Any, Dict, List, Optional
 from sqlalchemy.orm import Session
 
 from backend.app.models.all_models import Project, GeotechnicalReport
 from backend.app.services.geotech_intel.extractor import (
     GeotechnicalReportExtractor,
-    extract_pages_from_pdf
 )
 from backend.app.services.geotech_intel.engine import (
     GeotechnicalValidationEngine,
@@ -24,6 +24,10 @@ from backend.app.services.geotech_intel.engine import (
     GeotechnicalPipelineEngine
 )
 from backend.app.services.geotech_intel.fields import val, is_found
+from backend.app.services.geotechnical_service import (
+    extract_pages_from_file,
+    validate_geotechnical_report_text,
+)
 
 
 def generate_report_code(db: Session) -> str:
@@ -43,7 +47,8 @@ class GeotechnicalIntelligenceService:
         content: Optional[bytes] = None,
         raw_text: Optional[str] = None,
         filename: str = "geotechnical_report.pdf",
-        params: Optional[Dict[str, Any]] = None
+        params: Optional[Dict[str, Any]] = None,
+        extracted_pages: Optional[List[str]] = None,
     ) -> Dict[str, Any]:
         """
         Processes a single report in complete isolation.
@@ -53,28 +58,20 @@ class GeotechnicalIntelligenceService:
         if not project:
             raise ValueError(f"Project {project_id} not found")
 
-        # 1. Extract text and pages
+        # 1. Extract text and pages from the uploaded document format.
         pages: List[str] = []
         full_text = ""
 
-        if content and (filename.lower().endswith(".pdf") or content[:4] == b"%PDF"):
-            pages = extract_pages_from_pdf(content)
-            full_text = "\n".join(pages)
-        elif content:
-            try:
-                full_text = content.decode("utf-8")
-                pages = [full_text]
-            except Exception:
-                full_text = str(content)
-                pages = [full_text]
+        if content:
+            pages = extracted_pages or extract_pages_from_file(content, filename)
+            full_text = "\n".join(page for page in pages if page and page.strip())
         elif raw_text:
             full_text = raw_text.strip()
             pages = [full_text]
         else:
             raise ValueError("No file content or text provided.")
 
-        if not full_text.strip():
-            raise ValueError("Unable to extract text from provided document.")
+        validate_geotechnical_report_text(full_text)
 
         # 2. Document-First Extraction (zero context contamination)
         extractor = GeotechnicalReportExtractor(full_text=full_text, pages=pages, filename=filename)
@@ -157,13 +154,30 @@ class GeotechnicalIntelligenceService:
 
         # 5. Extract summary values for DB record compatibility
         proj_name = val(extracted["project_information"].get("project_name")) or project.name
-        primary_rock = val(extracted["rock_analysis"].get("rock_type")) or "Hard Rock"
-        rqd_val = val(extracted["rock_analysis"].get("rqd")) or 65.0
-        rqd_num = 65.0
-        if isinstance(rqd_val, str):
-            m_r = re_search_float(rqd_val)
-            if m_r:
-                rqd_num = m_r
+        primary_rock = val(extracted["rock_analysis"].get("rock_type"))
+        if not is_found(extracted["rock_analysis"].get("rock_type")):
+            primary_rock = None
+        rqd_val = val(extracted["rock_analysis"].get("rqd"))
+        rqd_num = (
+            float(rqd_val)
+            if isinstance(rqd_val, (int, float))
+            else re_search_float(rqd_val)
+            if isinstance(rqd_val, str) and is_found(extracted["rock_analysis"].get("rqd"))
+            else None
+        )
+        groundwater_value = extracted["groundwater_analysis"].get("observed_depth")
+        if not is_found(groundwater_value):
+            groundwater_value = extracted["groundwater_analysis"].get("groundwater_depth")
+        groundwater_depth = val(groundwater_value)
+        groundwater_num = (
+            float(groundwater_depth)
+            if isinstance(groundwater_depth, (int, float))
+            else re_search_float(groundwater_depth)
+            if isinstance(groundwater_depth, str)
+            and is_found(groundwater_value)
+            and not re.search(r"\d\s*(?:-|to|–|—)\s*\d", groundwater_depth, re.IGNORECASE)
+            else None
+        )
 
         # Save to database
         report_row = GeotechnicalReport(
@@ -171,10 +185,10 @@ class GeotechnicalIntelligenceService:
             report_title=f"{proj_name} - {filename}",
             filename=filename,
             raw_text=full_text[:12000],
-            primary_rock_type=str(primary_rock),
-            strata_classification="Subsurface Strata",
+            primary_rock_type=str(primary_rock) if primary_rock is not None else None,
+            strata_classification=None,
             rock_quality_designation_rqd=rqd_num,
-            water_table_depth_m=2.0,
+            water_table_depth_m=groundwater_num,
             intelligence_data_json=json.dumps(report_payload),
             strata_layers_json=json.dumps(strata_layers_list),
             recommended_machinery_json=json.dumps(machinery_fleet),

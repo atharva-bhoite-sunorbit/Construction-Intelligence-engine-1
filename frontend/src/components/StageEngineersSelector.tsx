@@ -14,7 +14,7 @@ export const STANDARD_PROJECT_STAGES: StageConfig[] = [
     key: 'Pre-Construction',
     label: 'Pre-Construction',
     shortDesc: 'Surveys, geotech, permits, foundation layout & logistics planning',
-    accentColor: 'border-cyan-500 text-cyan-700 bg-cyan-50',
+    accentColor: 'border-teal-500 text-teal-700 bg-teal-50',
     defaultEngineers: [
       'Liam Chen (Lead Structural Engineer)',
       'Vikram Malhotra (Geotechnical & Site Survey Engineer)',
@@ -38,7 +38,7 @@ export const STANDARD_PROJECT_STAGES: StageConfig[] = [
     key: 'Superstructure',
     label: 'Superstructure',
     shortDesc: 'RCC columns, shear walls, post-tensioned slabs & structural steel frames',
-    accentColor: 'border-blue-500 text-blue-700 bg-blue-50',
+    accentColor: 'border-amber-500 text-amber-700 bg-amber-50',
     defaultEngineers: [
       'Liam Chen (Lead Structural Engineer)',
       'Marcus Brody (QC & Concrete Technology Engineer)',
@@ -74,7 +74,7 @@ export const STANDARD_PROJECT_STAGES: StageConfig[] = [
     key: 'Handover',
     label: 'Handover',
     shortDesc: 'Snagging rectification, testing, commissioning, compliance & client handover',
-    accentColor: 'border-indigo-500 text-indigo-700 bg-indigo-50',
+    accentColor: 'border-slate-500 text-slate-700 bg-slate-50',
     defaultEngineers: [
       'Alexander Vance (Testing, Commissioning & QA Engineer)',
       'Elena Rostova (Snagging & Defect Rectification Engineer)',

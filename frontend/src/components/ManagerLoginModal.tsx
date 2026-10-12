@@ -175,23 +175,23 @@ export const ManagerLoginModal: React.FC<ManagerLoginModalProps> = ({
                 <button
                   type="button"
                   onClick={() => fillCredentials('admin@construction.ai', 'admin123')}
-                  className="px-2 py-1.5 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-800 border border-blue-200 text-[11px] font-semibold transition-colors flex items-center gap-1.5 text-left"
+                  className="px-2 py-1.5 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 text-[11px] font-semibold transition-colors flex items-center gap-1.5 text-left"
                 >
-                  <UserCheck className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                  <UserCheck className="w-3.5 h-3.5 text-amber-600 shrink-0" />
                   <div className="truncate">
                     <span className="font-bold block truncate">Alexander Vance</span>
-                    <span className="text-[9px] text-blue-600 font-medium">Admin</span>
+                    <span className="text-[9px] text-amber-600 font-medium">Admin</span>
                   </div>
                 </button>
                 <button
                   type="button"
                   onClick={() => fillCredentials('pm@construction.ai', 'pm123')}
-                  className="px-2 py-1.5 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-800 border border-indigo-200 text-[11px] font-semibold transition-colors flex items-center gap-1.5 text-left"
+                  className="px-2 py-1.5 rounded-lg bg-slate-50 hover:bg-slate-100 text-slate-800 border border-slate-200 text-[11px] font-semibold transition-colors flex items-center gap-1.5 text-left"
                 >
-                  <UserCheck className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
+                  <UserCheck className="w-3.5 h-3.5 text-slate-600 shrink-0" />
                   <div className="truncate">
                     <span className="font-bold block truncate">Marcus Brody</span>
-                    <span className="text-[9px] text-indigo-600 font-medium">Project Manager</span>
+                    <span className="text-[9px] text-slate-600 font-medium">Project Manager</span>
                   </div>
                 </button>
                 <button
