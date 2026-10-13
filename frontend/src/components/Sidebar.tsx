@@ -1,193 +1,135 @@
-import React from 'react';
-import {
-  LayoutDashboard,
-  Building2,
-  CalendarDays,
-  Network,
-  Users,
-  AlertTriangle,
-  GitBranch,
-  TrendingUp,
-  Brain,
-  FileSpreadsheet,
-  History,
-  ShieldCheck,
-  Flame,
-  Camera,
-  Activity as ActivityIcon,
-  Pickaxe
-} from 'lucide-react';
+import React, { useState } from 'react';
+import { AlertTriangle, Building2, CalendarDays, ChevronDown, ClipboardList, Box, CalendarCheck, LayoutDashboard, ListChecks, FileSpreadsheet } from 'lucide-react';
 
 interface SidebarProps {
   currentTab: string;
   onSelectTab: (tab: string) => void;
-  isAdmin?: boolean;
-  pendingRecsCount?: number;
-  openBlockersCount?: number;
+  role?: string;
   mobileOpen?: boolean;
+  /** Hidden on large screens (the user folded it away). */
+  collapsed?: boolean;
   isSyncing?: boolean;
   isSyncError?: boolean;
   lastSyncAt?: Date | null;
+  /** True when the signed-in user belongs to more than one project. */
+  multiProject?: boolean;
+  /** Small counts shown next to a menu item, e.g. problems waiting for review. */
+  badges?: Record<string, number>;
 }
 
+type NavItem = { id: string; label: string; icon: React.ComponentType<{ className?: string }> };
+
+const PORTFOLIO: NavItem = { id: 'portfolio', label: 'All projects', icon: Building2 };
+const OVERVIEW: NavItem = { id: 'overview', label: 'Overview', icon: LayoutDashboard };
+const BUILDING: NavItem = { id: 'building', label: '3D view', icon: Box };
+const TODAY: NavItem = { id: 'today', label: 'Today', icon: CalendarCheck };
+const TASKS: NavItem = { id: 'tasks', label: 'Tasks', icon: ListChecks };
+const MY_TASKS: NavItem = { id: 'tasks', label: 'My tasks', icon: ListChecks };
+const PROBLEMS: NavItem = { id: 'problems', label: 'Problems', icon: AlertTriangle };
+const SCHEDULE: NavItem = { id: 'schedule', label: 'Schedule', icon: CalendarDays };
+const REPORTS: NavItem = { id: 'reports', label: 'Reports', icon: FileSpreadsheet };
+
+/** Everything that used to be on the main menu. Still available, just out of the way. */
+const MORE_TOOLS: { id: string; label: string }[] = [
+  { id: 'dashboard', label: 'Detailed dashboard' },
+  { id: 'structure-lifecycle', label: 'Structure plan' },
+  { id: 'activities', label: 'Activities (detailed)' },
+  { id: 'gantt', label: 'Gantt chart' },
+  { id: 'dependencies', label: 'Dependencies' },
+  { id: 'pm-validation', label: 'Activity sign-off' },
+  { id: 'geotechnical', label: 'Geotechnical' },
+  { id: 'resources', label: 'Resources' },
+  { id: 'monitoring', label: 'Daily site control' },
+  { id: 'blockers', label: 'Blockers' },
+  { id: 'risks', label: 'AI risk centre' },
+  { id: 'predictions', label: 'Predictions' },
+  { id: 'impact', label: 'Impact analysis' },
+  { id: 'forecast', label: 'Completion forecast' },
+  { id: 'recommendations', label: 'AI recommendations' },
+  { id: 'reports', label: 'Reports' },
+  { id: 'audit', label: 'Audit trail' },
+  { id: 'projects', label: 'Project settings' },
+];
+
+export const primaryNav = (role?: string, multiProject = false): NavItem[] => {
+  if (role === 'Admin' || role === 'Project Manager') return [...(multiProject ? [PORTFOLIO] : []), OVERVIEW, TODAY, BUILDING, TASKS, PROBLEMS, SCHEDULE];
+  if (role === 'Top Management') return [PORTFOLIO, OVERVIEW, BUILDING, PROBLEMS, SCHEDULE, REPORTS];
+  return [TODAY, MY_TASKS, PROBLEMS, SCHEDULE]; // site engineers and site managers
+};
+
+/** Where a user lands after signing in: directors start from their list of projects. */
+export const defaultTabFor = (role?: string): string => (role === 'Top Management' ? 'portfolio' : primaryNav(role)[0].id);
+
 export const Sidebar: React.FC<SidebarProps> = ({
-  currentTab,
-  onSelectTab,
-  isAdmin = false,
-  pendingRecsCount = 0,
-  openBlockersCount = 0,
-  mobileOpen = false,
-  isSyncing = false,
-  isSyncError = false,
-  lastSyncAt,
+  currentTab, onSelectTab, role, mobileOpen = false, collapsed = false, isSyncing = false, isSyncError = false, lastSyncAt, badges = {}, multiProject = false,
 }) => {
-  const syncLabel = isSyncing ? 'Syncing' : isSyncError ? 'Connection issue' : lastSyncAt ? 'Synced' : 'Waiting';
-  const syncColor = isSyncError
-    ? 'text-rose-700'
-    : isSyncing
-      ? 'text-amber-700'
-      : 'text-emerald-700';
-  const navSections = [
-    {
-      title: 'EXECUTIVE',
-      items: [
-        { id: 'dashboard', label: 'Executive Dashboard', icon: LayoutDashboard },
-        { id: 'projects', label: '41 ZOY Project', icon: Building2 },
-      ],
-    },
-    {
-      title: 'PLANNING & SCHEDULE',
-      items: [
-        {
-          id: 'structure-lifecycle',
-          label: 'Structure & Handover Plan',
-          icon: Building2,
-          badge: 'Progress & Daily',
-          badgeColor: 'bg-amber-100 text-amber-900 border-amber-200 font-bold',
-        },
-        { id: 'activities', label: 'Activities Hierarchy', icon: ActivityIcon },
-        {
-          id: 'pm-validation',
-          label: 'Activity Governance Gate',
-          icon: ShieldCheck,
-          badge: 'Multi-Tier',
-          badgeColor: 'bg-emerald-100 text-emerald-800 border-emerald-300 font-bold',
-        },
-        {
-          id: 'geotechnical',
-          label: 'Geotechnical & 3D Cutaway',
-          icon: Pickaxe,
-          badge: '3D Cutaway',
-          badgeColor: 'bg-amber-100 text-amber-900 border-amber-300 font-bold',
-        },
-        { id: 'gantt', label: 'Interactive Gantt', icon: CalendarDays },
-        { id: 'dependencies', label: 'Dependency Graph', icon: Network },
-      ],
-    },
-    {
-      title: 'RESOURCES & MONITORING',
-      items: [
-        { id: 'resources', label: 'Resource Planning', icon: Users },
-        {
-          id: 'monitoring',
-          label: 'Daily Tasks & Site Control',
-          icon: ShieldCheck,
-          badge: 'Live Muster',
-          badgeColor: 'bg-amber-100 text-amber-900 border-amber-200 font-bold',
-        },
-        {
-          id: 'blockers',
-          label: 'Blockers & Photos',
-          icon: Camera,
-          badge: openBlockersCount > 0 ? `${openBlockersCount}` : undefined,
-          badgeColor: 'bg-rose-100 text-rose-700 border border-rose-200',
-        },
-      ],
-    },
-    {
-      title: 'AI / ML INTELLIGENCE',
-      items: [
-        { id: 'risks', label: 'AI Risk Center', icon: Flame },
-        { id: 'predictions', label: 'ML Predictions', icon: Brain },
-        { id: 'impact', label: 'Cascading Impact', icon: GitBranch },
-        { id: 'forecast', label: 'Completion Forecast', icon: TrendingUp },
-        {
-          id: 'recommendations',
-          label: 'AI Recommendations',
-          icon: AlertTriangle,
-          badge: pendingRecsCount > 0 ? `${pendingRecsCount}` : undefined,
-          badgeColor: 'bg-amber-100 text-amber-800 border border-amber-200',
-        },
-      ],
-    },
-    {
-      title: 'REPORTS & GOVERNANCE',
-      items: [
-        { id: 'reports', label: 'Executive Reports & Excel', icon: FileSpreadsheet },
-        { id: 'audit', label: 'Audit Trail', icon: History },
-      ],
-    },
-  ];
+  const items = primaryNav(role, multiProject);
+  const showMore = role === 'Admin' || role === 'Project Manager';
+  const moreTools = MORE_TOOLS.filter((t) => t.id !== 'blockers' || role === 'Admin');
+  const inMore = showMore && !items.some((i) => i.id === currentTab);
+  const [moreOpen, setMoreOpen] = useState(false);
+  const open = moreOpen || inMore;
+  const sync = isSyncError ? { text: 'Connection problem', cls: 'text-rose-700' } : isSyncing ? { text: 'Updating…', cls: 'text-slate-500' }
+    : lastSyncAt ? { text: `Updated ${lastSyncAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`, cls: 'text-slate-500' } : null;
 
   return (
-    <aside className={`${mobileOpen ? 'fixed inset-y-16 left-0 z-40 flex w-72 shadow-xl' : 'hidden'} h-[calc(100vh-4rem)] min-h-0 flex-shrink-0 flex-col justify-between overflow-y-auto border-r border-slate-200/90 bg-white p-3.5 lg:relative lg:inset-auto lg:z-auto lg:flex lg:w-64 lg:shadow-none`}>
-      <div className="space-y-4">
-        {navSections.map((sec, idx) => (
-          <div key={idx}>
-            <div className="mb-1.5 px-2.5 text-[11px] font-bold uppercase tracking-wider text-slate-400">
-              {sec.title}
-            </div>
-            <div className="space-y-0.5">
-              {sec.items.filter((item) => isAdmin || item.id !== 'blockers').map((item) => {
-                const Icon = item.icon;
-                const isActive = currentTab === item.id;
-                const isCountBadge = item.id === 'blockers' || item.id === 'recommendations';
-                return (
-                  <button
-                    key={item.id}
-                    onClick={() => onSelectTab(item.id)}
-                    className={`flex w-full items-center justify-between rounded-lg px-2.5 py-1.5 text-sm transition-all ${
-                      isActive
-                        ? 'border border-slate-200/90 bg-slate-100 text-slate-900 font-semibold shadow-sm'
-                        : 'font-medium text-slate-600 hover:bg-slate-50 hover:text-slate-900'
-                    }`}
-                  >
-                    <div className="flex items-center gap-2.5 truncate">
-                      <Icon className={`h-4 w-4 ${isActive ? 'text-amber-700' : 'text-slate-400'}`} />
-                      <span className="truncate">{item.label}</span>
-                    </div>
+    <aside
+      aria-label="Main menu"
+      className={`${mobileOpen ? 'fixed inset-y-16 left-0 z-40 flex w-64 shadow-xl' : 'hidden'} h-[calc(100vh-4rem)] min-h-0 flex-shrink-0 flex-col justify-between overflow-y-auto border-r border-slate-200 bg-white p-4 lg:relative lg:inset-auto lg:z-auto ${collapsed ? 'lg:hidden' : 'lg:flex'} lg:w-60 lg:shadow-none`}
+    >
+      <nav className="space-y-1">
+        {items.map((item) => {
+          const Icon = item.icon;
+          const active = currentTab === item.id;
+          return (
+            <button
+              key={item.id + item.label}
+              onClick={() => onSelectTab(item.id)}
+              aria-current={active ? 'page' : undefined}
+              className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition ${
+                active ? 'bg-blue-50 text-blue-800' : 'text-slate-700 hover:bg-slate-100'
+              }`}
+            >
+              <Icon className={`h-5 w-5 ${active ? 'text-blue-700' : 'text-slate-400'}`} />
+              <span className="flex-1 text-left">{item.label}</span>
+              {(badges[item.id] ?? 0) > 0 && (
+                <span className="min-w-[1.25rem] rounded-full bg-amber-500 px-1.5 text-center text-xs font-semibold leading-5 text-white" aria-label={`${badges[item.id]} waiting`}>
+                  {badges[item.id]}
+                </span>
+              )}
+            </button>
+          );
+        })}
 
-                    {item.badge && (
-                      <span
-                        className={`${isCountBadge ? 'inline-flex' : 'hidden xl:inline-flex'} rounded px-1.5 py-0.5 text-[11px] font-semibold tabular-nums ${
-                          isActive ? 'bg-slate-900 text-white' : item.badgeColor
-                        }`}
-                      >
-                        {item.badge}
-                      </span>
-                    )}
-                  </button>
-                );
-              })}
-            </div>
+        {showMore && (
+          <div className="pt-4">
+            <button
+              onClick={() => setMoreOpen((v) => !v)}
+              aria-expanded={open}
+              className="flex w-full items-center justify-between rounded-lg px-3 py-2 text-sm font-medium text-slate-500 hover:bg-slate-100"
+            >
+              <span className="flex items-center gap-3"><ClipboardList className="h-5 w-5 text-slate-400" />More tools</span>
+              <ChevronDown className={`h-4 w-4 transition-transform ${open ? 'rotate-180' : ''}`} />
+            </button>
+            {open && (
+              <ul className="mt-1 space-y-0.5 border-l border-slate-200 pl-3 ml-5">
+                {moreTools.map((t) => (
+                  <li key={t.id}>
+                    <button
+                      onClick={() => onSelectTab(t.id)}
+                      aria-current={currentTab === t.id ? 'page' : undefined}
+                      className={`w-full rounded-md px-2.5 py-1.5 text-left text-sm ${currentTab === t.id ? 'bg-blue-50 font-medium text-blue-800' : 'text-slate-600 hover:bg-slate-100'}`}
+                    >
+                      {t.label}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
-        ))}
-      </div>
-
-      <div className="rounded-lg border border-slate-200 bg-slate-50/70 p-3 shadow-sm">
-        <div className="flex items-center justify-between text-xs font-semibold text-slate-800">
-          <span>Project data</span>
-          <span className={`flex items-center gap-1.5 font-mono text-xs ${syncColor}`}>
-            <span className={`h-1.5 w-1.5 rounded-full ${isSyncError ? 'bg-rose-600' : isSyncing ? 'bg-amber-500 animate-pulse' : 'bg-emerald-600'}`} />
-            {syncLabel}
-          </span>
-        </div>
-        <div className="mt-1 text-xs leading-relaxed text-slate-500">
-          {lastSyncAt
-            ? `Last updated ${lastSyncAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
-            : 'Waiting for the first project sync'}
-        </div>
-      </div>
+        )}
+      </nav>
+      {sync && <p className={`px-3 pt-4 text-xs ${sync.cls}`} role="status">{sync.text}</p>}
     </aside>
   );
 };

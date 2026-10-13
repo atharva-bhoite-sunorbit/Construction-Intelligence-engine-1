@@ -13,7 +13,8 @@ from backend.app.schemas.all_schemas import (
 )
 from backend.app.services.progress_service import ProgressService
 from backend.app.services.audit_service import AuditService
-from backend.app.utils.security import get_current_user_optional, require_roles
+from backend.app.utils.security import get_current_user, require_roles
+from backend.app.utils.access import assert_activity_access
 from backend.app.api.activities import synthesize_task_requirements
 
 router = APIRouter(tags=["Monitoring & Daily Progress"])
@@ -22,7 +23,7 @@ router = APIRouter(tags=["Monitoring & Daily Progress"])
 def submit_daily_progress(
     progress_in: DailyProgressCreate,
     db: Session = Depends(get_db),
-    current_user: Optional[User] = Depends(get_current_user_optional)
+    current_user: User = Depends(get_current_user)
 ):
     """
     Submits daily site progress update.
@@ -32,6 +33,7 @@ def submit_daily_progress(
     activity = db.query(Activity).filter(Activity.id == progress_in.activity_id).first()
     if not activity:
         raise HTTPException(status_code=404, detail="Activity not found")
+    assert_activity_access(db, current_user, activity)
 
     record = ProgressService.record_daily_progress(
         db=db,
@@ -86,7 +88,7 @@ def validate_daily_progress(
     progress_id: int,
     val_in: ValidationChecklistSubmission,
     db: Session = Depends(get_db),
-    current_user: Optional[User] = Depends(get_current_user_optional)
+    current_user: User = Depends(get_current_user)
 ):
     """
     Manager validates daily site progress using the interactive verification checklist.
@@ -201,7 +203,7 @@ def report_blocker(
     project_id: int,
     blocker_in: BlockerCreate,
     db: Session = Depends(get_db),
-    current_user: Optional[User] = Depends(get_current_user_optional)
+    current_user: User = Depends(get_current_user)
 ):
     project = db.query(Project).filter(Project.id == project_id).first()
     if not project:
@@ -299,7 +301,7 @@ def upload_site_photo(
     project_id: int,
     photo_in: SiteObservationCreate,
     db: Session = Depends(get_db),
-    current_user: Optional[User] = Depends(get_current_user_optional)
+    current_user: User = Depends(get_current_user)
 ):
     p_data = photo_in.model_dump()
     p_data["project_id"] = project_id

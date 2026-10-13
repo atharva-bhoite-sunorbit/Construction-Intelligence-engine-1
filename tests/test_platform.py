@@ -16,6 +16,7 @@ from backend.app.services.ai_service import AIService
 from backend.app.ml.feature_engineering import FeatureEngineering
 from backend.app.ml.delay_model import DelayPredictionService
 from backend.app.ml.duration_model import DurationPredictionService
+from tests.conftest import ensure_project
 
 @pytest.fixture(scope="module")
 def db():
@@ -103,7 +104,7 @@ def test_circular_dependency_detection(db):
         )
 
 def test_progress_and_productivity_computation(db):
-    p = db.query(Project).filter(Project.code == "PRJ-APEX-01").first()
+    p = ensure_project(db)
     assert p is not None
     act = db.query(Activity).filter(Activity.project_id == p.id).first()
     assert act is not None
@@ -126,7 +127,7 @@ def test_progress_and_productivity_computation(db):
     assert record.labour_shortage >= 0
 
 def test_ml_and_ai_services(db):
-    p = db.query(Project).filter(Project.code == "PRJ-APEX-01").first()
+    p = ensure_project(db)
     act = db.query(Activity).filter(Activity.project_id == p.id).first()
 
     feat = FeatureEngineering.extract_features_for_activity(db, act, p)

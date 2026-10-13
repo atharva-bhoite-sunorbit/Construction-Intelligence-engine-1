@@ -16,7 +16,8 @@ from backend.app.schemas.all_schemas import (
 from backend.app.services.template_engine import TemplateEngine
 from backend.app.services.scheduling_engine import SchedulingEngine
 from backend.app.services.audit_service import AuditService
-from backend.app.utils.security import get_current_user_optional
+from backend.app.utils.security import get_current_user
+from backend.app.utils.access import allowed_towers, tower_allowed, assert_activity_access
 
 router = APIRouter(tags=["Activities"])
 
@@ -49,7 +50,7 @@ def generate_auto_plan(
     project_id: int,
     request: AutoPlanRequest,
     db: Session = Depends(get_db),
-    current_user: Optional[User] = Depends(get_current_user_optional)
+    current_user: User = Depends(get_current_user)
 ):
     """
     AUTO PLAN ENGINE:
@@ -113,7 +114,7 @@ def create_manual_activity(
     project_id: int,
     activity_in: ActivityCreate,
     db: Session = Depends(get_db),
-    current_user: Optional[User] = Depends(get_current_user_optional)
+    current_user: User = Depends(get_current_user)
 ):
     """MANUAL PLAN: Add Activity manually."""
     project = db.query(Project).filter(Project.id == project_id).first()
@@ -222,7 +223,7 @@ def get_activities_by_date(
     project_id: int,
     target_date: Optional[str] = Query(None, description="Date in YYYY-MM-DD format (defaults to current date)"),
     db: Session = Depends(get_db),
-    current_user: Optional[User] = Depends(get_current_user_optional)
+    current_user: User = Depends(get_current_user)
 ):
     """
     Day-Wise Construction Activity Health & Daily Requirements Inspector:
@@ -250,7 +251,11 @@ def get_activities_by_date(
         raise HTTPException(status_code=404, detail="Project not found")
 
     # 2. Query all activities for project
-    all_activities = db.query(Activity).filter(Activity.project_id == project_id).order_by(Activity.floor, Activity.sort_order).all()
+    towers = allowed_towers(db, current_user, project_id)
+    all_activities = [
+        a for a in db.query(Activity).filter(Activity.project_id == project_id).order_by(Activity.floor, Activity.sort_order).all()
+        if tower_allowed(towers, a.tower)
+    ]
 
     # Preload ML delay predictions and blockers
     preds = {
@@ -551,9 +556,13 @@ def list_activities(
     validation_status: Optional[str] = Query(None),
     final_recorded: Optional[bool] = Query(None),
     awaiting_pm_verification: Optional[bool] = Query(None),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
 ):
     query = db.query(Activity).filter(Activity.project_id == project_id)
+    towers = allowed_towers(db, current_user, project_id)
+    if towers is not None:
+        query = query.filter(Activity.tower.in_(towers | {"Common", "All"}))
 
     if floor is not None:
         query = query.filter(Activity.floor == floor)
@@ -619,7 +628,7 @@ def update_activity(
     id: int,
     activity_update: ActivityUpdate,
     db: Session = Depends(get_db),
-    current_user: Optional[User] = Depends(get_current_user_optional)
+    current_user: User = Depends(get_current_user)
 ):
     activity = db.query(Activity).filter(Activity.id == id).first()
     if not activity:
@@ -650,7 +659,7 @@ def update_activity(
 def delete_activity(
     id: int,
     db: Session = Depends(get_db),
-    current_user: Optional[User] = Depends(get_current_user_optional)
+    current_user: User = Depends(get_current_user)
 ):
     activity = db.query(Activity).filter(Activity.id == id).first()
     if not activity:
@@ -983,7 +992,7 @@ def validate_activity(
     id: int,
     req: ActivityValidationRequest,
     db: Session = Depends(get_db),
-    current_user: Optional[User] = Depends(get_current_user_optional)
+    current_user: User = Depends(get_current_user)
 ):
     """
     Multi-Tier Activity Governance Engine:
@@ -1038,7 +1047,7 @@ def bulk_validate_activities(
     project_id: int,
     req: BatchActivityValidationRequest,
     db: Session = Depends(get_db),
-    current_user: Optional[User] = Depends(get_current_user_optional)
+    current_user: User = Depends(get_current_user)
 ):
     """
     Multi-Tier Bulk Validation & Verification:

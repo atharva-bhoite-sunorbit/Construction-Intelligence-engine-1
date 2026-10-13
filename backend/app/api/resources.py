@@ -9,7 +9,7 @@ from backend.app.schemas.all_schemas import (
 )
 from backend.app.services.resource_service import ResourceService
 from backend.app.services.audit_service import AuditService
-from backend.app.utils.security import get_current_user_optional
+from backend.app.utils.security import get_current_user
 
 router = APIRouter(tags=["Resources"])
 
@@ -23,7 +23,7 @@ def create_resource(
     project_id: int,
     res_in: ResourceCreate,
     db: Session = Depends(get_db),
-    current_user: Optional[User] = Depends(get_current_user_optional)
+    current_user: User = Depends(get_current_user)
 ):
     res_data = res_in.model_dump()
     res_data["project_id"] = project_id
@@ -48,7 +48,7 @@ def update_resource(
     id: int,
     res_update: ResourceUpdate,
     db: Session = Depends(get_db),
-    current_user: Optional[User] = Depends(get_current_user_optional)
+    current_user: User = Depends(get_current_user)
 ):
     res = db.query(Resource).filter(Resource.id == id).first()
     if not res:

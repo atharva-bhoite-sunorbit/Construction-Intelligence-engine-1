@@ -12,7 +12,7 @@ from backend.app.schemas.all_schemas import (
 from backend.app.services.weather_soil_service import WeatherSoilService
 from backend.app.services.geotechnical_service import extract_text_from_file
 from backend.app.services.audit_service import AuditService
-from backend.app.utils.security import get_current_user_optional
+from backend.app.utils.security import get_current_user
 
 router = APIRouter(tags=["Site Weather & Geotechnical Soil Analysis"])
 
@@ -56,7 +56,7 @@ def submit_environmental_analysis(
     project_id: int,
     data: EnvironmentalAnalysisCreate,
     db: Session = Depends(get_db),
-    current_user: Optional[User] = Depends(get_current_user_optional)
+    current_user: User = Depends(get_current_user)
 ):
     """
     Manager updates site weather data (wind speed, temperature, rainfall, humidity)
@@ -186,7 +186,7 @@ def submit_site_validation(
     project_id: int,
     submission: ValidationChecklistSubmission,
     db: Session = Depends(get_db),
-    current_user: Optional[User] = Depends(get_current_user_optional)
+    current_user: User = Depends(get_current_user)
 ):
     """
     Manager validates milestone/stage or site safety clearance with a multi-item checklist.

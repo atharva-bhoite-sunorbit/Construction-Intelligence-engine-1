@@ -111,7 +111,8 @@ class CPMEngine:
                         cand_lf = succ_ls - lag
 
                     min_lf = min(min_lf, cand_lf)
-                lf[u] = int(min_lf)
+                # No activity may finish after the project does, whatever its successors would allow
+                lf[u] = min(int(min_lf), project_duration)
             ls[u] = lf[u] - dur
 
         # 3. FLOAT & CRITICAL PATH

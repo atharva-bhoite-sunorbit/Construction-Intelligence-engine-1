@@ -7,7 +7,7 @@ from backend.app.schemas.all_schemas import DependencyCreate, DependencyResponse
 from backend.app.services.dependency_engine import DependencyEngine, CircularDependencyException
 from backend.app.services.scheduling_engine import SchedulingEngine
 from backend.app.services.audit_service import AuditService
-from backend.app.utils.security import get_current_user_optional
+from backend.app.utils.security import get_current_user
 
 router = APIRouter(tags=["Dependencies"])
 
@@ -16,7 +16,7 @@ def create_dependency(
     project_id: int,
     dep_in: DependencyCreate,
     db: Session = Depends(get_db),
-    current_user: Optional[User] = Depends(get_current_user_optional)
+    current_user: User = Depends(get_current_user)
 ):
     """
     Creates an activity dependency (FS, SS, FF, SF) with circular dependency validation.
@@ -109,7 +109,7 @@ def list_dependencies(project_id: int, db: Session = Depends(get_db)):
 def delete_dependency(
     id: int,
     db: Session = Depends(get_db),
-    current_user: Optional[User] = Depends(get_current_user_optional)
+    current_user: User = Depends(get_current_user)
 ):
     dep = db.query(ActivityDependency).filter(ActivityDependency.id == id).first()
     if not dep:

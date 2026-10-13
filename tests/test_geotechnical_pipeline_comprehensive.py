@@ -17,6 +17,7 @@ import json
 from datetime import date
 import pytest
 from fastapi.testclient import TestClient
+from tests.conftest import auth_headers, grant_membership
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
@@ -32,6 +33,7 @@ from backend.app.services.geotech_intel.engine import (
 from backend.app.services.geotech_intel.fields import is_found, val, NOT_IN_REPORT
 
 client = TestClient(app)
+client.headers.update(auth_headers("pm@construction.ai"))
 
 REPORT_ROCK_TEXT = """
 GEOTECHNICAL INVESTIGATION REPORT
@@ -367,6 +369,7 @@ def test_api_endpoints_and_boq_sync(db):
     db.add(proj)
     db.commit()
     db.refresh(proj)
+    grant_membership(db, proj.id, "pm@construction.ai")
 
     extractor = GeotechnicalReportExtractor(REPORT_ROCK_TEXT, [REPORT_ROCK_TEXT])
     complete_intel = extractor.extract_complete_intelligence()

@@ -1,15 +1,28 @@
 import os
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from backend.app.database.connection import engine, Base
+from backend.app.utils.security import get_current_user
+from backend.app.utils.access import enforce_project_access
 from backend.app.models.all_models import *
 from backend.app.api import (
     auth, projects, activities, dependencies, schedule,
-    resources, progress, predictions, impact, forecasts, ai, reports, audit, environmental, geotechnical
+    resources, progress, predictions, impact, forecasts, ai, reports, audit, environmental, geotechnical, members, schedule_import, tasks, readiness, problems, sequence, portfolio, notifications, building, today
 )
 
 # Initialize tables
 Base.metadata.create_all(bind=engine)
+
+# Starter readiness checklists (only fills work types that have none yet)
+try:
+    from backend.app.database.connection import SessionLocal
+    from backend.app.services.readiness import ensure_default_templates
+    from backend.app.services.daily_checklist import ensure_default_daily_items
+    with SessionLocal() as _db:
+        ensure_default_templates(_db)
+        ensure_default_daily_items(_db)
+except Exception as _tpl_err:
+    print(f"Readiness template note: {_tpl_err}")
 
 # Self-healing migration for SQLite
 try:
@@ -19,6 +32,9 @@ try:
         cols = [r[1] for r in result]
         if "stage_engineers_json" not in cols:
             conn.execute(text("ALTER TABLE projects ADD COLUMN stage_engineers_json TEXT"))
+            conn.commit()
+        if "cover_image_url" not in cols:
+            conn.execute(text("ALTER TABLE projects ADD COLUMN cover_image_url VARCHAR(500)"))
             conn.commit()
 
         # Check daily_progress validation columns
@@ -68,6 +84,24 @@ try:
             conn.execute(text("ALTER TABLE blockers ADD COLUMN delay_impact_days FLOAT DEFAULT 0.0"))
         if "difficulty_cause" not in blk_cols:
             conn.execute(text("ALTER TABLE blockers ADD COLUMN difficulty_cause VARCHAR(255)"))
+        for col, ddl in (
+            ("task_id", "INTEGER"),
+            ("owner", "VARCHAR(255)"),
+            ("impact_status", "VARCHAR(20) DEFAULT 'NOT_ASSESSED' NOT NULL"),
+            ("proposed_delay_days", "FLOAT"),
+            ("proposed_project_delay_days", "FLOAT"),
+            ("proposed_on_critical_path", "BOOLEAN"),
+            ("proposal_note", "TEXT"),
+            ("proposed_at", "DATETIME"),
+            ("confirmed_delay_days", "FLOAT"),
+            ("confirmed_project_delay_days", "FLOAT"),
+            ("impact_note", "TEXT"),
+            ("impact_decided_by_user_id", "INTEGER"),
+            ("impact_decided_at", "DATETIME"),
+            ("resolution_note", "TEXT"),
+        ):
+            if col not in blk_cols:
+                conn.execute(text(f"ALTER TABLE blockers ADD COLUMN {col} {ddl}"))
 
         # Check activities governance columns
         act_result = conn.execute(text("PRAGMA table_info(activities)")).fetchall()
@@ -159,10 +193,15 @@ app = FastAPI(
     version="1.0.0"
 )
 
-# Enable CORS for frontend Vite dev server & external systems
+# CORS: only the configured frontend origins (comma-separated CORS_ORIGINS), Vite dev server by default
+_cors_origins = [
+    o.strip()
+    for o in os.getenv("CORS_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173").split(",")
+    if o.strip()
+]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=_cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -204,20 +243,35 @@ async def enforce_external_api_key_boundary(request, call_next):
 from backend.app.api import geotechnical_external_v1
 
 app.include_router(auth.router)
-app.include_router(projects.router)
-app.include_router(activities.router)
-app.include_router(dependencies.router)
-app.include_router(schedule.router)
-app.include_router(resources.router)
-app.include_router(progress.router)
-app.include_router(predictions.router)
-app.include_router(impact.router)
-app.include_router(forecasts.router)
-app.include_router(ai.router)
-app.include_router(reports.router)
-app.include_router(audit.router)
-app.include_router(environmental.router)
-app.include_router(geotechnical.router)
+# Every internal router requires a logged-in user. Login/token live on the auth router (public);
+# the external geotechnical API authenticates with its own API keys.
+_require_login = [Depends(get_current_user)]
+# Routers that act on a project also check project membership and tower scope.
+_require_project_access = [Depends(get_current_user), Depends(enforce_project_access)]
+app.include_router(projects.router, dependencies=_require_project_access)
+app.include_router(activities.router, dependencies=_require_project_access)
+app.include_router(dependencies.router, dependencies=_require_project_access)
+app.include_router(schedule.router, dependencies=_require_project_access)
+app.include_router(resources.router, dependencies=_require_project_access)
+app.include_router(progress.router, dependencies=_require_project_access)
+app.include_router(predictions.router, dependencies=_require_project_access)
+app.include_router(impact.router, dependencies=_require_project_access)
+app.include_router(forecasts.router, dependencies=_require_project_access)
+app.include_router(ai.router, dependencies=_require_project_access)
+app.include_router(reports.router, dependencies=_require_project_access)
+app.include_router(audit.router, dependencies=_require_login)
+app.include_router(environmental.router, dependencies=_require_project_access)
+app.include_router(geotechnical.router, dependencies=_require_project_access)
+app.include_router(members.router, dependencies=_require_project_access)
+app.include_router(schedule_import.router, dependencies=_require_project_access)
+app.include_router(tasks.router, dependencies=_require_project_access)
+app.include_router(readiness.router, dependencies=_require_login)
+app.include_router(problems.router, dependencies=_require_project_access)
+app.include_router(sequence.router, dependencies=_require_project_access)
+app.include_router(portfolio.router, dependencies=_require_login)
+app.include_router(notifications.router, dependencies=_require_login)
+app.include_router(building.router, dependencies=_require_project_access)
+app.include_router(today.router, dependencies=_require_project_access)
 app.include_router(geotechnical_external_v1.router)
 
 
@@ -231,7 +285,7 @@ def health_check():
         "mode": "Autonomous ML & Decision Support Engine"
     }
 
-@app.get("/api/dashboard/stats")
+@app.get("/api/dashboard/stats", dependencies=_require_login)
 def get_global_dashboard_stats(db_session = None):
     """Provides executive top KPI metrics across all projects."""
     from backend.app.database.connection import SessionLocal

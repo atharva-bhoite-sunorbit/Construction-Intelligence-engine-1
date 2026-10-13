@@ -949,3 +949,331 @@ export interface GeotechnicalIntelligenceDoc {
   summary?: GeotechnicalSummary;
   rock_types?: any[];
 }
+
+// ---- Execution tasks (simple workflow) ----
+export type TaskStatus =
+  | 'DRAFT' | 'PENDING_APPROVAL' | 'APPROVED' | 'REJECTED' | 'IN_PROGRESS' | 'BLOCKED' | 'COMPLETED';
+
+export type TaskActionName = 'submit' | 'approve' | 'reject' | 'start' | 'block' | 'unblock' | 'complete';
+
+export interface Task {
+  id: number;
+  project_id: number;
+  activity_id: number | null;
+  activity_code: string | null;
+  activity_name: string | null;
+  tower: string;
+  title: string;
+  description: string | null;
+  is_unplanned: boolean;
+  unplanned_reason: string | null;
+  status: TaskStatus;
+  planned_days: number;
+  progress_percent: number;
+  assigned_to: string | null;
+  actual_start_date: string | null;
+  actual_end_date: string | null;
+  rejection_reason: string | null;
+  blocked_note: string | null;
+  created_at: string | null;
+  allowed_actions: TaskActionName[];
+  activity_progress_percent: number | null;
+  work_type: string | null;
+  checks_total: number;
+  checks_done: number;
+  unmet_checks: string[];
+  sequence_step: number | null;
+  waiting_on: string[];
+}
+
+export interface TaskCheck {
+  id: number;
+  name: string;
+  description: string | null;
+  mandatory: boolean;
+  passed: boolean;
+  waived: boolean;
+  waiver_reason: string | null;
+  note: string | null;
+  step: number;
+  locked: boolean;
+  locked_by: string | null;
+}
+
+export interface DailyChecklistStep {
+  id: number;
+  step: number;
+  name: string;
+  description: string | null;
+  done: boolean;
+  done_at: string | null;
+  locked: boolean;
+  locked_by: string | null;
+}
+
+export interface DailyChecklist {
+  role: string | null;
+  day: string;
+  editable: boolean;
+  done: number;
+  total: number;
+  items: DailyChecklistStep[];
+}
+
+export interface LookaheadStop { kind: 'problem' | 'on_hold' | 'waiting'; text: string; problem_id?: number; task_id?: number }
+
+export interface LookaheadItem {
+  activity_id: number;
+  name: string;
+  tower: string | null;
+  state: 'IN_PROGRESS' | 'READY' | 'WAITING';
+  progress_percent: number;
+  start_date: string | null;
+  end_date: string | null;
+  work_type: string | null;
+  late: boolean;
+  starts: boolean;
+  finishes: boolean;
+  tasks: { id: number; title: string; status: string }[];
+  stopped_by: LookaheadStop[];
+  notes: string[];
+}
+
+export interface PlanBOption {
+  kind: 'boost' | 'pull_forward';
+  activity_id: number;
+  name: string;
+  tower: string | null;
+  work_type: string | null;
+  start_date: string | null;
+  end_date: string | null;
+  days_early: number;
+  open_task_id: number | null;
+  why: string;
+}
+
+export interface Lookahead {
+  today: string;
+  days: { date: string; is_today: boolean; items: LookaheadItem[] }[];
+  stopped: number;
+  plan_b: PlanBOption[];
+  summary: { today_items: number; late: number; running: number };
+}
+
+export interface NewTaskInput {
+  title: string;
+  planned_days: number;
+  assigned_to?: string;
+  activity_id?: number;
+  is_unplanned?: boolean;
+  unplanned_reason?: string;
+  tower?: string;
+}
+
+// ---- Problems (blockers with PM-confirmed delay) ----
+export type ImpactStatus = 'NOT_ASSESSED' | 'PROPOSED' | 'CONFIRMED' | 'NO_IMPACT';
+
+export interface Problem {
+  id: number;
+  project_id: number;
+  task_id: number | null;
+  task_title: string | null;
+  activity_id: number | null;
+  activity_name: string | null;
+  tower: string | null;
+  category: string;
+  description: string;
+  severity: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+  owner: string | null;
+  opened_date: string;
+  expected_resolution: string | null;
+  resolved_date: string | null;
+  status: 'OPEN' | 'RESOLVED' | string;
+  days_open: number;
+  resolution_note: string | null;
+  reported_by_name: string | null;
+  impact_status: ImpactStatus;
+  needs_review: boolean;
+  proposed_delay_days: number | null;
+  proposed_project_delay_days: number | null;
+  proposed_on_critical_path: boolean | null;
+  proposal_note: string | null;
+  confirmed_delay_days: number | null;
+  confirmed_project_delay_days: number | null;
+  impact_note: string | null;
+  impact_decided_by_name: string | null;
+  impact_decided_at: string | null;
+  estimate_changed: boolean;
+}
+
+export interface NewProblemInput {
+  category: string;
+  description: string;
+  severity: 'LOW' | 'MEDIUM' | 'HIGH';
+  owner?: string;
+  expected_resolution?: string;
+  task_id?: number;
+  activity_id?: number;
+}
+
+export interface DelaySummary {
+  open_problems: number;
+  waiting_for_review: number;
+  confirmed_problems: number;
+  confirmed_activity_delay_days: number;
+  largest_confirmed_project_delay_days: number;
+  unconfirmed: { id: number; category: string; proposed_project_delay_days: number | null }[];
+  by_category: { category: string; problems: number; open: number; confirmed_delay_days: number }[];
+}
+
+// ---- Plan sequence and portfolio ----
+export type SequenceState = 'DONE' | 'IN_PROGRESS' | 'READY' | 'WAITING';
+
+export interface SequenceItem {
+  activity_id: number;
+  step: number;
+  name: string;
+  tower: string | null;
+  state: SequenceState;
+  waiting_on: string[];
+  predecessors: { id: number; name: string; type: string; lag_days: number; done: boolean }[];
+  status: string;
+  progress_percent: number;
+  start_date: string | null;
+  end_date: string | null;
+  planned_duration: number | null;
+}
+
+export interface PortfolioProject {
+  id: number;
+  name: string;
+  code: string;
+  location: string | null;
+  status: string;
+  planned_start_date: string | null;
+  target_completion_date: string | null;
+  activities: number;
+  progress_percent: number;
+  late_activities: number;
+  open_problems: number;
+  problems_waiting_for_review: number;
+  largest_confirmed_project_delay_days: number;
+  pending_approvals: number;
+  cover_image_url: string | null;
+  current_work: { name: string; towers: string[] }[];
+  expected_finish: string | null;
+}
+
+// ---- Notifications, attention inbox, activity detail, digest ----
+export interface AppNotification {
+  id: number;
+  project_id: number | null;
+  project_name?: string | null;
+  kind: string;
+  title: string;
+  body: string | null;
+  entity_type: 'task' | 'problem' | 'activity' | null;
+  entity_id: number | null;
+  created_at: string;
+  read: boolean;
+}
+
+export interface NotificationList {
+  unread_count: number;
+  items: AppNotification[];
+}
+
+export interface AttentionItem {
+  kind: 'APPROVAL' | 'PROBLEM_REVIEW' | 'BLOCKED_TASK' | 'LATE_ACTIVITY' | 'SHOULD_HAVE_STARTED';
+  severity: 'high' | 'medium' | 'low';
+  title: string;
+  detail: string;
+  days: number;
+  tab: string;
+  entity_type: 'task' | 'problem' | 'activity';
+  entity_id: number;
+  tower: string | null;
+}
+
+export interface FocusTarget {
+  type: 'task' | 'problem' | 'activity';
+  id: number;
+  nonce: number;
+}
+
+export interface ActivityDetail {
+  id: number;
+  name: string;
+  tower: string | null;
+  phase: string | null;
+  work_package: string | null;
+  status: string;
+  progress_percent: number;
+  planned_duration: number | null;
+  start_date: string | null;
+  end_date: string | null;
+  baseline_start_date: string | null;
+  baseline_end_date: string | null;
+  actual_start_date: string | null;
+  actual_end_date: string | null;
+  finish_variance_days: number | null;
+  is_critical: boolean;
+  total_float: number | null;
+  step: number;
+  state: SequenceState;
+  waiting_on: string[];
+  predecessors: { id: number; name: string; type: string; lag_days: number; done: boolean }[];
+  successors: { id: number; name: string; type: string; lag_days: number; state: SequenceState; tower: string | null }[];
+  task_days_planned: number;
+  tasks: { id: number; title: string; status: string; progress_percent: number; planned_days: number; is_unplanned: boolean }[];
+  problems: {
+    id: number; category: string; status: string; impact_status: string; description: string; opened_date: string;
+    resolved_date: string | null; confirmed_delay_days: number | null; confirmed_project_delay_days: number | null; proposed_delay_days: number | null;
+  }[];
+}
+
+export interface Digest {
+  days: number;
+  since: string;
+  until: string;
+  tasks_finished: number;
+  tasks_started: number;
+  activities_finished: number;
+  approvals_decided: number;
+  problems_reported: number;
+  problems_resolved: number;
+  delay_confirmed_this_period_days: number;
+  recent_finished: { title: string; tower: string; date: string }[];
+  planned_finish: string | null;
+  expected_finish: string | null;
+  confirmed_project_delay_days: number;
+}
+
+// ---- 3D building view and portfolio cards ----
+export interface BuildingLevel {
+  index: number;
+  kind: 'foundation' | 'stilt' | 'podium' | 'floor' | 'terrace' | 'above';
+  label: string;
+  progress_percent: number;
+  state: 'DONE' | 'IN_PROGRESS' | 'NOT_STARTED';
+  late: boolean;
+  activity_ids: number[];
+  start_date: string;
+  end_date: string;
+}
+
+export interface BuildingWing {
+  name: string;
+  footprint: [number, number][];
+  podium_footprint: [number, number][];
+  floor_height: number;
+  levels: BuildingLevel[];
+  summary: { levels: number; done: number; running: number; progress_percent: number };
+}
+
+export interface BuildingData {
+  source: 'drawing' | 'placeholder' | 'none';
+  unit: string;
+  note?: string;
+  wings: BuildingWing[];
+}

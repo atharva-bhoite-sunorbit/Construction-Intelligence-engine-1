@@ -46,3 +46,7 @@ Thumbs.db
 *.swo
 .cache/
 **/.cache/
+
+# Client drawings are not committed (see data/drawings/README.md)
+data/drawings/*
+!data/drawings/README.md

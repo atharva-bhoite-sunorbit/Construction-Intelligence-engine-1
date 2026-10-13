@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Bell, X } from 'lucide-react';
 import { Navbar } from './components/Navbar';
-import { Sidebar } from './components/Sidebar';
+import { Sidebar, defaultTabFor } from './components/Sidebar';
 import { AddActivityModal } from './components/AddActivityModal';
 import { AutoPlanModal } from './components/AutoPlanModal';
 import { LogProgressModal } from './components/LogProgressModal';
@@ -9,6 +9,14 @@ import { WeatherSoilModal } from './components/WeatherSoilModal';
 import { ManagerValidationModal } from './components/ManagerValidationModal';
 import { AIAssistantDrawer } from './components/AIAssistantDrawer';
 import { ManagerLoginModal } from './components/ManagerLoginModal';
+import { LoginScreen } from './components/LoginScreen';
+import { TasksPage } from './pages/TasksPage';
+import { OverviewPage } from './pages/OverviewPage';
+import { BuildingPage } from './pages/BuildingPage';
+import { TodayPage } from './pages/TodayPage';
+import { SchedulePage } from './pages/SchedulePage';
+import { ProblemsPage } from './pages/ProblemsPage';
+import { PortfolioPage } from './pages/PortfolioPage';
 import { LogHindranceModal } from './components/LogHindranceModal';
 import { ManagerGeotechValidationModal } from './components/ManagerGeotechValidationModal';
 
@@ -27,12 +35,18 @@ import { AuditLogPage } from './pages/AuditLogPage';
 import { GeotechnicalReportPage } from './pages/GeotechnicalReportPage';
 import { ProjectStructureLifecycleHub } from './components/ProjectStructureLifecycleHub';
 
-import { apiClient } from './api/client';
-import { User, Project, Activity, ActivityDependency, CompletionForecast, RiskItem, AIRecommendation, Blocker, DailyProgress, HindranceSubmissionReceipt } from './types';
+import { apiClient, AUTH_EXPIRED_EVENT } from './api/client';
+import { User, Project, Activity, ActivityDependency, CompletionForecast, RiskItem, AIRecommendation, Blocker, DailyProgress, HindranceSubmissionReceipt, DelaySummary, AppNotification, FocusTarget } from './types';
 
 export function App() {
-  const [currentTab, setCurrentTab] = useState<string>('structure-lifecycle');
+  const [currentTab, setCurrentTab] = useState<string>('overview');
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const [sidebarHidden, setSidebarHidden] = useState(() => { try { return localStorage.getItem('sidebarHidden') === '1'; } catch { return false; } });
+  const toggleNavigation = () => {
+    if (window.innerWidth >= 1024) {
+      setSidebarHidden((h) => { try { localStorage.setItem('sidebarHidden', h ? '0' : '1'); } catch { /* ignore */ } return !h; });
+    } else setMobileNavOpen((open) => !open);
+  };
   const [projects, setProjects] = useState<Project[]>([]);
   const [projectsLoading, setProjectsLoading] = useState(true);
   const [projectsError, setProjectsError] = useState<string | null>(null);
@@ -49,6 +63,11 @@ export function App() {
   const [risks, setRisks] = useState<RiskItem[]>([]);
   const [recommendations, setRecommendations] = useState<AIRecommendation[]>([]);
   const [blockers, setBlockers] = useState<Blocker[]>([]);
+  const [delaySummary, setDelaySummary] = useState<DelaySummary | null>(null);
+  const [notifications, setNotifications] = useState<AppNotification[]>([]);
+  const [unreadNotifications, setUnreadNotifications] = useState(0);
+  const [focus, setFocus] = useState<FocusTarget | null>(null);
+  const [pendingApprovals, setPendingApprovals] = useState(0);
   const [hindranceNotice, setHindranceNotice] = useState<{ title: string; description: string } | null>(null);
   const knownBlockerIds = useRef<Set<number> | null>(null);
 
@@ -66,6 +85,7 @@ export function App() {
   // Manager Authentication & Review Modals State
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
+  const [authChecked, setAuthChecked] = useState(false);
   const [isLogHindranceOpen, setIsLogHindranceOpen] = useState(false);
   const [hindranceActivityId, setHindranceActivityId] = useState<number | undefined>(undefined);
   const [isGeotechReviewOpen, setIsGeotechReviewOpen] = useState(false);
@@ -73,33 +93,90 @@ export function App() {
   // Initial load: Fetch session & projects
   useEffect(() => {
     apiClient.getMe()
-      .then((user) => setCurrentUser(user))
-      .catch(() => setCurrentUser(null));
+      .then((user) => { setCurrentUser(user); setCurrentTab(defaultTabFor(user.role)); })
+      .catch(() => setCurrentUser(null))
+      .finally(() => setAuthChecked(true));
   }, []);
+
+  // Login is mandatory: a 401 anywhere sends the user back to the sign-in screen.
+  useEffect(() => {
+    const handleExpired = () => {
+      setCurrentUser(null);
+      setProjects([]);
+      setActiveProjectId(undefined);
+      setActivities([]);
+      setBlockers([]);
+      knownBlockerIds.current = null;
+    };
+    window.addEventListener(AUTH_EXPIRED_EVENT, handleExpired);
+    return () => window.removeEventListener(AUTH_EXPIRED_EVENT, handleExpired);
+  }, []);
+
+  const fetchNotifications = useCallback(async () => {
+    try {
+      const data = await apiClient.getNotifications(20);
+      setNotifications(data.items);
+      setUnreadNotifications(data.unread_count);
+    } catch {
+      /* the bell simply keeps its last state */
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!currentUser) {
+      setNotifications([]);
+      setUnreadNotifications(0);
+      return;
+    }
+    void fetchNotifications();
+    const timer = window.setInterval(() => void fetchNotifications(), 30_000);
+    return () => window.clearInterval(timer);
+  }, [currentUser, fetchNotifications]);
+
+  /** Go to a page, optionally straight to one task, problem or activity. */
+  const navigate = useCallback((tab: string, target?: { type: FocusTarget['type']; id: number }) => {
+    setCurrentTab(tab);
+    setMobileNavOpen(false);
+    if (target) setFocus({ ...target, nonce: Date.now() });
+  }, []);
+
+  const openNotification = (n: AppNotification) => {
+    if (!n.read) {
+      setNotifications((cur) => cur.map((x) => (x.id === n.id ? { ...x, read: true } : x)));
+      setUnreadNotifications((c) => Math.max(0, c - 1));
+      void apiClient.markNotificationRead(n.id).catch(() => undefined);
+    }
+    if (n.project_id && n.project_id !== activeProjectId) setActiveProjectId(n.project_id);
+    const tab = n.entity_type === 'task' ? 'tasks' : n.entity_type === 'problem' ? 'problems' : n.entity_type === 'activity' ? 'schedule' : 'overview';
+    navigate(tab, n.entity_type && n.entity_id ? { type: n.entity_type, id: n.entity_id } : undefined);
+  };
+
+  const markAllNotificationsRead = () => {
+    setNotifications((cur) => cur.map((x) => ({ ...x, read: true })));
+    setUnreadNotifications(0);
+    void apiClient.markAllNotificationsRead().catch(() => undefined);
+  };
 
   const fetchProjects = useCallback(async () => {
     setProjectsLoading(true);
     setProjectsError(null);
     try {
       const data = await apiClient.getProjects();
-      const featuredProject = data.filter((project) => project.code === 'PRJ-41ZOY');
-      setProjects(featuredProject);
+      setProjects(data);
       setActiveProjectId((selectedId) =>
-        featuredProject.some((project) => project.id === selectedId)
-          ? selectedId
-          : featuredProject[0]?.id
+        data.some((project) => project.id === selectedId) ? selectedId : data[0]?.id
       );
     } catch (err) {
       console.error('Error fetching projects:', err);
-      setProjectsError('Could not load the 41 ZOY project. Check your connection and try again.');
+      setProjectsError('Could not load your projects. Check your connection and try again.');
     } finally {
       setProjectsLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    void fetchProjects();
-  }, [fetchProjects]);
+    if (currentUser) void fetchProjects();
+  }, [currentUser, fetchProjects]);
 
   // When activeProjectId changes, fetch all associated project data
   const fetchActiveProjectData = useCallback(async () => {
@@ -107,14 +184,20 @@ export function App() {
     projectSyncInFlight.current = true;
     setIsProjectSyncing(true);
     try {
-      const [acts, deps, fc, rk, recs, blk] = await Promise.all([
+      const isApprover = currentUser?.role === 'Project Manager' || currentUser?.role === 'Admin';
+      const [acts, deps, fc, rk, recs, blk, summary, taskRows] = await Promise.all([
         apiClient.getActivities(activeProjectId),
         apiClient.getDependencies(activeProjectId),
         apiClient.getCompletionForecast(activeProjectId).catch(() => null),
         apiClient.getRiskCenter(activeProjectId).catch(() => ({ critical_risks: [], high_risks: [], medium_risks: [], low_risks: [] })),
         apiClient.getAIRecommendations(activeProjectId).catch(() => []),
         currentUser?.role === 'Admin' ? apiClient.getBlockers(activeProjectId) : Promise.resolve([]),
+        apiClient.getDelaySummary(activeProjectId).catch(() => null),
+        isApprover ? apiClient.getTasks(activeProjectId).catch(() => []) : Promise.resolve([]),
       ]);
+      setDelaySummary(summary);
+      void fetchNotifications();
+      setPendingApprovals(taskRows.filter((t) => t.status === 'PENDING_APPROVAL').length);
 
       setActivities(acts);
       setDependencies(deps);
@@ -137,7 +220,7 @@ export function App() {
           )[0];
           setHindranceNotice({
             title: 'New hindrance reported',
-            description: `${latestBlocker.category} · ${latestBlocker.activity_name || 'Project-wide'} has been saved to the 41 ZOY hindrance register.`,
+            description: `${latestBlocker.category} · ${latestBlocker.activity_name || 'Project-wide'} has been saved to the hindrance register.`,
           });
         }
         knownBlockerIds.current = new Set(blk.map((blocker) => blocker.id));
@@ -154,7 +237,7 @@ export function App() {
       projectSyncInFlight.current = false;
       setIsProjectSyncing(false);
     }
-  }, [activeProjectId, currentUser?.role]);
+  }, [activeProjectId, currentUser?.role, fetchNotifications]);
 
   useEffect(() => {
     void fetchActiveProjectData();
@@ -210,6 +293,18 @@ export function App() {
   const pendingRecsCount = recommendations.filter((r) => r.status === 'PENDING').length;
   const openBlockersCount = blockers.filter((b) => b.status !== 'RESOLVED').length;
 
+  if (!authChecked) {
+    return (
+      <div className="min-h-screen flex items-center justify-center text-sm text-slate-500" role="status">
+        Checking your session…
+      </div>
+    );
+  }
+
+  if (!currentUser) {
+    return <LoginScreen onLoginSuccess={(user) => { setCurrentUser(user); setCurrentTab(defaultTabFor(user.role)); }} />;
+  }
+
   return (
     <div className="min-h-screen bg-transparent text-slate-900 flex flex-col font-sans selection:bg-amber-200 selection:text-slate-900">
       {/* Top Navbar */}
@@ -219,9 +314,10 @@ export function App() {
         currentUser={currentUser}
         onSelectProject={(id) => {
           setActiveProjectId(id);
-          setCurrentTab('structure-lifecycle');
+          setCurrentTab(defaultTabFor(currentUser.role));
         }}
-        onToggleNavigation={() => setMobileNavOpen((open) => !open)}
+        onToggleNavigation={toggleNavigation}
+        navHidden={sidebarHidden}
         mobileNavOpen={mobileNavOpen}
         onOpenLogProgress={() => handleOpenLogProgressWithActivity()}
         onToggleAIAssistant={() => setIsAIAssistantOpen(!isAIAssistantOpen)}
@@ -231,7 +327,6 @@ export function App() {
           setValidationTargetActivityName(undefined);
           setIsValidationOpen(true);
         }}
-        onOpenLoginModal={() => setIsLoginModalOpen(true)}
         onLogout={() => {
           apiClient.logout();
           setCurrentUser(null);
@@ -243,8 +338,11 @@ export function App() {
           setHindranceActivityId(undefined);
           setIsLogHindranceOpen(true);
         }}
-        hindranceCount={openBlockersCount}
-        onOpenHindranceRegister={() => setCurrentTab('blockers')}
+        hideProject={currentTab === 'portfolio'}
+        notifications={notifications}
+        unreadNotifications={unreadNotifications}
+        onOpenNotification={openNotification}
+        onMarkAllNotificationsRead={markAllNotificationsRead}
       />
 
       {/* Main Body */}
@@ -264,10 +362,15 @@ export function App() {
             setCurrentTab(tab);
             setMobileNavOpen(false);
           }}
-          isAdmin={currentUser?.role === 'Admin'}
-          pendingRecsCount={pendingRecsCount}
-          openBlockersCount={openBlockersCount}
+          role={currentUser.role}
+          multiProject={projects.length > 1}
+          badges={
+            currentUser.role === 'Project Manager' || currentUser.role === 'Admin'
+              ? { problems: delaySummary?.waiting_for_review ?? 0, tasks: pendingApprovals }
+              : {}
+          }
           mobileOpen={mobileNavOpen}
+          collapsed={sidebarHidden}
           isSyncing={isProjectSyncing}
           isSyncError={projectSyncError}
           lastSyncAt={lastProjectSync}
@@ -277,6 +380,29 @@ export function App() {
         <main className="flex-1 overflow-y-auto bg-transparent p-4 lg:p-7 max-h-[calc(100vh-4rem)]">
           {activeProject ? (
             <>
+              {currentTab === 'portfolio' && (
+                <PortfolioPage
+                  currentUserName={currentUser.full_name}
+                  onOpenProject={(id) => { setActiveProjectId(id); setCurrentTab('overview'); }}
+                />
+              )}
+
+              {currentTab === 'overview' && (
+                <OverviewPage project={activeProject} activities={activities} currentUser={currentUser} delaySummary={delaySummary} onNavigate={navigate} />
+              )}
+
+              {currentTab === 'today' && <TodayPage project={activeProject} activities={activities} currentUser={currentUser} onNavigate={navigate} />}
+              {currentTab === 'building' && <BuildingPage project={activeProject} onNavigate={navigate} />}
+              {currentTab === 'tasks' && (
+                <TasksPage project={activeProject} activities={activities} currentUser={currentUser} focus={focus} onChanged={() => void fetchActiveProjectData()} />
+              )}
+
+              {currentTab === 'problems' && (
+                <ProblemsPage project={activeProject} activities={activities} currentUser={currentUser} focus={focus} onChanged={() => void fetchActiveProjectData()} />
+              )}
+
+              {currentTab === 'schedule' && <SchedulePage project={activeProject} activities={activities} focus={focus} onOpenTab={(t) => navigate(t)} />}
+
               {currentTab === 'dashboard' && (
                 <Dashboard
                   projects={projects}
@@ -309,11 +435,7 @@ export function App() {
                     setCurrentTab('structure-lifecycle');
                   }}
                   onProjectUpdated={(updatedPrj) => {
-                    if (updatedPrj.code === 'PRJ-41ZOY') {
-                      setProjects((prev) =>
-                        prev.map((p) => (p.id === updatedPrj.id ? updatedPrj : p))
-                      );
-                    }
+                    setProjects((prev) => prev.map((p) => (p.id === updatedPrj.id ? updatedPrj : p)));
                   }}
                 />
               )}
@@ -424,8 +546,8 @@ export function App() {
               {projectsLoading ? (
                 <>
                   <div className="h-10 w-10 animate-spin rounded-full border-2 border-slate-200 border-t-amber-600" />
-                  <h2 className="mt-4 text-base font-semibold text-slate-800">Loading 41 ZOY</h2>
-                  <p className="mt-1 text-sm text-slate-500">Connecting to the project schedule and site data…</p>
+                  <h2 className="mt-4 text-base font-semibold text-slate-800">Loading your projects</h2>
+                  <p className="mt-1 text-sm text-slate-500">Connecting to the schedule and site data…</p>
                 </>
               ) : projectsError ? (
                 <>
@@ -441,8 +563,8 @@ export function App() {
                 </>
               ) : (
                 <>
-                  <h2 className="text-base font-semibold text-slate-800">41 ZOY project data is unavailable</h2>
-                  <p className="mt-1 text-sm text-slate-500">Project PRJ-41ZOY is not present in the project service.</p>
+                  <h2 className="text-base font-semibold text-slate-800">No projects yet</h2>
+                  <p className="mt-1 text-sm text-slate-500">You are not a member of any project. Ask an administrator to add you.</p>
                   <button
                     type="button"
                     onClick={() => void fetchProjects()}

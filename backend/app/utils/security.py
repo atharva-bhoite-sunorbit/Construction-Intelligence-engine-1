@@ -17,7 +17,13 @@ from sqlalchemy.orm import Session
 from backend.app.database.connection import get_db
 from backend.app.models.all_models import User
 
-SECRET_KEY = os.getenv("SECRET_KEY", "super-secret-construction-intelligence-key-2026")
+APP_ENV = os.getenv("APP_ENV", "development").lower()
+_DEV_SECRET_KEY = "dev-only-secret-key-change-me"
+SECRET_KEY = os.getenv("SECRET_KEY") or ""
+if not SECRET_KEY:
+    if APP_ENV == "production":
+        raise RuntimeError("SECRET_KEY must be set when APP_ENV=production")
+    SECRET_KEY = _DEV_SECRET_KEY
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 # 24 hours
 
@@ -40,11 +46,9 @@ def get_current_user_optional(
     token: Optional[str] = Depends(oauth2_scheme),
     db: Session = Depends(get_db)
 ) -> Optional[User]:
+    """Returns the user behind a valid token, or None. There is no default or demo user."""
     if not token:
-        # Provide default system user if unauthenticated for seamless developer experience
-        user = db.query(User).filter(User.email == "pm@construction.ai").first()
-        return user
-
+        return None
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         email: str = payload.get("sub")
@@ -54,6 +58,8 @@ def get_current_user_optional(
         return None
 
     user = db.query(User).filter(User.email == email).first()
+    if user is None or not user.is_active:
+        return None
     return user
 
 def get_current_user(
@@ -62,10 +68,6 @@ def get_current_user(
 ) -> User:
     user = get_current_user_optional(token, db)
     if not user:
-        # If no user exists yet, fetch or return demo user
-        demo_user = db.query(User).first()
-        if demo_user:
-            return demo_user
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Could not validate credentials",

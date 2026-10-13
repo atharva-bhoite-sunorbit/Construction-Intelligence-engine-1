@@ -1,0 +1,85 @@
+{
+  "unit": "m",
+  "source": "Sketch 22_ KD Working.dxf",
+  "wings": {
+    "Tower A": {
+      "footprint": [
+        [
+          -10.9,
+          9.4
+        ],
+        [
+          20.9,
+          9.4
+        ],
+        [
+          20.9,
+          29.4
+        ],
+        [
+          -10.9,
+          29.4
+        ]
+      ],
+      "floor_height": 2.95,
+      "podium_footprint": [
+        [
+          -20.9,
+          -0.0
+        ],
+        [
+          20.9,
+          -0.0
+        ],
+        [
+          20.9,
+          29.4
+        ],
+        [
+          -20.9,
+          29.4
+        ]
+      ]
+    },
+    "Tower B": {
+      "footprint": [
+        [
+          -10.9,
+          -29.4
+        ],
+        [
+          20.9,
+          -29.4
+        ],
+        [
+          20.9,
+          -9.4
+        ],
+        [
+          -10.9,
+          -9.4
+        ]
+      ],
+      "floor_height": 2.95,
+      "podium_footprint": [
+        [
+          -20.9,
+          -29.4
+        ],
+        [
+          20.9,
+          -29.4
+        ],
+        [
+          20.9,
+          -0.0
+        ],
+        [
+          -20.9,
+          -0.0
+        ]
+      ]
+    }
+  },
+  "note": "Drawn from the architect's Sketch 22 (podium 41.8 x 58.8 m, storey 2.95 m). Tower A is the left block and Tower B the right block."
+}

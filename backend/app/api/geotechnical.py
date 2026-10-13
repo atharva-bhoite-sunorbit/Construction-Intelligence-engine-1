@@ -8,7 +8,8 @@ from sqlalchemy.orm import Session
 
 from backend.app.database.connection import get_db
 from backend.app.models.all_models import Project, Activity, ActivityDependency, GeotechnicalReport, User
-from backend.app.utils.security import get_current_user_optional
+from backend.app.utils.security import get_current_user
+from backend.app.utils.access import assert_project_access, has_global_access
 from backend.app.schemas.all_schemas import (
     GeotechnicalAnalysisRequest,
     PushToScheduleRequest,
@@ -77,14 +78,19 @@ async def upload_geotechnical_intelligence(
     file: Optional[UploadFile] = File(None),
     raw_text: Optional[str] = Form(None),
     project_id: Optional[int] = Form(None),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """
     Accepts supported geotechnical document formats and report text.
     Parses and extracts source-grounded geotechnical data into a dedicated report session.
     """
-    # Fallback to first project if not provided
+    # Members must say which project the report belongs to; the "first project" fallback is for Admin/Top Management only.
     p_id = project_id
+    if p_id:
+        assert_project_access(db, current_user, p_id)
+    elif not has_global_access(current_user):
+        raise HTTPException(status_code=400, detail="project_id is required")
     if not p_id:
         p = db.query(Project).first()
         if not p:
@@ -952,7 +958,7 @@ def compare_geotechnical_reports(
 def send_geotechnical_plan_to_manager(
     project_id: int,
     db: Session = Depends(get_db),
-    current_user: Optional[User] = Depends(get_current_user_optional)
+    current_user: User = Depends(get_current_user)
 ):
     """
     Submits the geotechnical and foundation activity plan to the Project Manager for formal YES/NO sign-off.

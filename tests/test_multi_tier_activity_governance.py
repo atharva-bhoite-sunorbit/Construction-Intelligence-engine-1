@@ -5,6 +5,7 @@ from backend.app.main import app
 from backend.app.database.connection import SessionLocal
 from backend.app.models.all_models import Project, Activity, User
 from backend.app.utils.security import create_access_token
+from tests.conftest import grant_membership
 
 client = TestClient(app)
 
@@ -29,6 +30,9 @@ def setup_governance_data():
         db.add(prj)
         db.commit()
         db.refresh(prj)
+
+    for email in ("sm@construction.ai", "pm@construction.ai", "eng@construction.ai", "exec@construction.ai"):
+        grant_membership(db, prj.id, email)
 
     # Clean existing test activities for this test project
     db.query(Activity).filter(Activity.project_id == prj.id).delete()
@@ -320,8 +324,10 @@ def test_top_management_read_only_and_summary(setup_governance_data):
     assert res_sum.status_code == 200
     summary = res_sum.json()
     assert summary["project_id"] == prj_id
-    assert summary["total_activities"] == 4
-    assert summary["final_recorded_count"] >= 3  # sm_id verified + pm_id validated + se_id verified
+    # Summary is scoped to structure & handover work (is_structure_or_handover_activity): the masonry and slab
+    # activities count; the statutory survey and geotechnical excavation activities do not.
+    assert summary["total_activities"] == 2
+    assert summary["final_recorded_count"] >= 2  # in-scope: sm_id verified + pm_id validated
     assert "Site Engineer" in summary["roles"]
     assert "Site Manager" in summary["roles"]
     assert "Admin" in summary["roles"]

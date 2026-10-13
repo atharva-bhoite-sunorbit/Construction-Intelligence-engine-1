@@ -5,7 +5,9 @@ import {
   RiskItem, ImpactAnalysisResponse, CompletionForecast,
   AIRecommendation, AIManagementSummary, DashboardStats,
   EnvironmentalAnalysis, ValidationSubmission, SiteValidationRecord,
-  GeotechnicalReport, SampleGeotechReport, GovernanceSummary
+  GeotechnicalReport, SampleGeotechReport, GovernanceSummary,
+  Task, TaskCheck, TaskActionName, Lookahead, DailyChecklist, NewTaskInput, Problem, NewProblemInput, DelaySummary,
+  SequenceItem, PortfolioProject, NotificationList, AppNotification, AttentionItem, ActivityDetail, Digest, BuildingData
 } from '../types';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
@@ -32,6 +34,21 @@ export const setAuthToken = (token?: string) => {
   }
 };
 
+// A 401 on any call except the login endpoints means the session is gone: drop the token and tell the app.
+export const AUTH_EXPIRED_EVENT = 'auth:expired';
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    const url: string = error?.config?.url ?? '';
+    const isLoginCall = url.includes('/api/auth/login') || url.includes('/api/auth/token');
+    if (error?.response?.status === 401 && !isLoginCall) {
+      setAuthToken(undefined);
+      window.dispatchEvent(new Event(AUTH_EXPIRED_EVENT));
+    }
+    return Promise.reject(error);
+  }
+);
+
 export const apiClient = {
   // Authentication & Session
   login: async (email: string, password: string): Promise<{ access_token: string; token_type: string; user: User }> => {
@@ -44,6 +61,23 @@ export const apiClient = {
 
   getMe: async (): Promise<User> => {
     const res = await api.get('/api/auth/me');
+    return res.data;
+  },
+
+  getDemoRoles: async (): Promise<{ key: string; label: string; description: string }[]> => {
+    try {
+      const res = await api.get('/api/auth/demo-roles');
+      return res.data;
+    } catch {
+      return [];
+    }
+  },
+
+  demoLogin: async (key: string): Promise<{ access_token: string; token_type: string; user: User }> => {
+    const res = await api.post('/api/auth/demo-login', { key });
+    if (res.data?.access_token) {
+      setAuthToken(res.data.access_token);
+    }
     return res.data;
   },
 
@@ -505,6 +539,144 @@ export const apiClient = {
 
   syncGeotechToBOQ: async (reportId: string | number): Promise<any> => {
     const res = await api.post(`/api/geotechnical/${reportId}/sync-boq`);
+    return res.data;
+  },
+
+  // Tasks
+  getTasks: async (projectId: number, params?: { status?: string; tower?: string }): Promise<Task[]> => {
+    const res = await api.get(`/api/projects/${projectId}/tasks`, { params });
+    return res.data;
+  },
+
+  createTask: async (projectId: number, input: NewTaskInput): Promise<Task> => {
+    const res = await api.post(`/api/projects/${projectId}/tasks`, input);
+    return res.data;
+  },
+
+  taskAction: async (taskId: number, action: TaskActionName, body?: { reason?: string; on_date?: string }): Promise<Task> => {
+    const res = await api.post(`/api/tasks/${taskId}/${action}`, body ?? {});
+    return res.data;
+  },
+
+  setTaskProgress: async (taskId: number, percent: number): Promise<Task> => {
+    const res = await api.post(`/api/tasks/${taskId}/progress`, { percent });
+    return res.data;
+  },
+
+  getTaskChecks: async (taskId: number): Promise<TaskCheck[]> => {
+    const res = await api.get(`/api/tasks/${taskId}/checks`);
+    return res.data;
+  },
+
+  setTaskCheck: async (taskId: number, checkId: number, passed: boolean): Promise<Task> => {
+    const res = await api.post(`/api/tasks/${taskId}/checks/${checkId}`, { passed });
+    return res.data;
+  },
+
+  waiveTaskCheck: async (taskId: number, checkId: number, reason: string): Promise<Task> => {
+    const res = await api.post(`/api/tasks/${taskId}/checks/${checkId}/waive`, { reason });
+    return res.data;
+  },
+
+  // Today: look-ahead with Plan B, and the daily checklist
+  getLookahead: async (projectId: number, days = 5): Promise<Lookahead> => {
+    const res = await api.get(`/api/projects/${projectId}/lookahead`, { params: { days } });
+    return res.data;
+  },
+
+  getDailyChecklist: async (projectId: number): Promise<DailyChecklist> => {
+    const res = await api.get(`/api/projects/${projectId}/daily-checklist`);
+    return res.data;
+  },
+
+  setDailyStep: async (projectId: number, itemId: number, done: boolean): Promise<DailyChecklist> => {
+    const res = await api.post(`/api/projects/${projectId}/daily-checklist/${itemId}`, { done });
+    return res.data;
+  },
+
+  getTask: async (taskId: number): Promise<Task> => {
+    const res = await api.get(`/api/tasks/${taskId}`);
+    return res.data;
+  },
+
+  // Problems
+  getProblems: async (projectId: number): Promise<Problem[]> => {
+    const res = await api.get(`/api/projects/${projectId}/problems`);
+    return res.data;
+  },
+
+  getProblemCategories: async (): Promise<string[]> => {
+    const res = await api.get('/api/problem-categories');
+    return res.data;
+  },
+
+  reportProblem: async (projectId: number, input: NewProblemInput): Promise<Problem> => {
+    const res = await api.post(`/api/projects/${projectId}/problems`, input);
+    return res.data;
+  },
+
+  resolveProblem: async (problemId: number, note?: string): Promise<Problem> => {
+    const res = await api.post(`/api/problems/${problemId}/resolve`, { note });
+    return res.data;
+  },
+
+  decideProblemImpact: async (
+    problemId: number,
+    body: { decision: 'CONFIRM' | 'NO_IMPACT'; days?: number; project_days?: number; note?: string }
+  ): Promise<Problem> => {
+    const res = await api.post(`/api/problems/${problemId}/impact`, body);
+    return res.data;
+  },
+
+  getDelaySummary: async (projectId: number): Promise<DelaySummary> => {
+    const res = await api.get(`/api/projects/${projectId}/delay-summary`);
+    return res.data;
+  },
+
+  // Plan sequence and portfolio
+  getSequence: async (projectId: number): Promise<SequenceItem[]> => {
+    const res = await api.get(`/api/projects/${projectId}/sequence`);
+    return res.data;
+  },
+
+  getPortfolio: async (): Promise<PortfolioProject[]> => {
+    const res = await api.get('/api/portfolio');
+    return res.data;
+  },
+
+  // Notifications, attention inbox, activity detail, digest
+  getNotifications: async (limit = 20): Promise<NotificationList> => {
+    const res = await api.get('/api/notifications', { params: { limit } });
+    return res.data;
+  },
+
+  markNotificationRead: async (id: number): Promise<AppNotification> => {
+    const res = await api.post(`/api/notifications/${id}/read`);
+    return res.data;
+  },
+
+  markAllNotificationsRead: async (): Promise<NotificationList> => {
+    const res = await api.post('/api/notifications/read-all');
+    return res.data;
+  },
+
+  getAttention: async (projectId: number): Promise<AttentionItem[]> => {
+    const res = await api.get(`/api/projects/${projectId}/attention`);
+    return res.data;
+  },
+
+  getDigest: async (projectId: number, days = 7): Promise<Digest> => {
+    const res = await api.get(`/api/projects/${projectId}/digest`, { params: { days } });
+    return res.data;
+  },
+
+  getActivityDetail: async (activityId: number): Promise<ActivityDetail> => {
+    const res = await api.get(`/api/activities/${activityId}/detail`);
+    return res.data;
+  },
+
+  getBuilding: async (projectId: number): Promise<BuildingData> => {
+    const res = await api.get(`/api/projects/${projectId}/building`);
     return res.data;
   }
 };

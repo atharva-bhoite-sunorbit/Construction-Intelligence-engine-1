@@ -11,7 +11,8 @@ from backend.app.schemas.all_schemas import (
 )
 from backend.app.services.ai_service import AIService
 from backend.app.services.audit_service import AuditService
-from backend.app.utils.security import get_current_user_optional
+from backend.app.utils.security import get_current_user
+from backend.app.utils.access import assert_project_access
 
 router = APIRouter(tags=["AI Reasoning & Assistant"])
 
@@ -68,7 +69,7 @@ def handle_recommendation_action(
     id: int,
     action_req: RecommendationActionRequest,
     db: Session = Depends(get_db),
-    current_user: Optional[User] = Depends(get_current_user_optional)
+    current_user: User = Depends(get_current_user)
 ):
     """
     Project Manager approval gate:
@@ -155,6 +156,8 @@ def get_latest_summary(project_id: int, db: Session = Depends(get_db)):
     }
 
 @router.post("/api/ai/chat", response_model=AIChatResponse)
-def chat_with_assistant(chat_req: AIChatRequest, db: Session = Depends(get_db)):
+def chat_with_assistant(chat_req: AIChatRequest, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     """AI Construction Assistant Chatbot responding with real database facts."""
+    if chat_req.project_id:
+        assert_project_access(db, current_user, chat_req.project_id)
     return AIService.answer_assistant_query(db, chat_req.query, chat_req.project_id)

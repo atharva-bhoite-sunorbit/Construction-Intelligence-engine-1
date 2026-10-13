@@ -4,11 +4,12 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 from backend.app.database.connection import get_db
-from backend.app.models.all_models import Project, Activity, User
+from backend.app.models.all_models import Project, Activity, ProjectMember, User
+from backend.app.utils.access import ALL_SCOPE, has_global_access
 from backend.app.schemas.all_schemas import ProjectCreate, ProjectUpdate, ProjectResponse
 from backend.app.services.resource_service import ResourceService
 from backend.app.services.audit_service import AuditService
-from backend.app.utils.security import get_current_user_optional
+from backend.app.utils.security import get_current_user
 
 router = APIRouter(prefix="/api/projects", tags=["Projects"])
 
@@ -16,7 +17,7 @@ router = APIRouter(prefix="/api/projects", tags=["Projects"])
 def create_project(
     project_in: ProjectCreate,
     db: Session = Depends(get_db),
-    current_user: Optional[User] = Depends(get_current_user_optional)
+    current_user: User = Depends(get_current_user)
 ):
     code_clean = (project_in.code or "").strip()
     if not code_clean:
@@ -38,6 +39,11 @@ def create_project(
         db.add(project)
         db.commit()
         db.refresh(project)
+
+        # The creator can work on the project they just made (Admin/Top Management reach everything anyway).
+        if not has_global_access(current_user):
+            db.add(ProjectMember(project_id=project.id, user_id=current_user.id, scope=ALL_SCOPE))
+            db.commit()
 
         # Initialize standard resource suite (Labour, Materials, Equipment)
         try:
@@ -93,8 +99,12 @@ def create_project(
         raise HTTPException(status_code=400, detail=f"Could not create project: {str(e)}")
 
 @router.get("", response_model=List[ProjectResponse])
-def list_projects(db: Session = Depends(get_db)):
-    projects = db.query(Project).filter(Project.code == "PRJ-41ZOY").order_by(Project.created_at.desc()).all()
+def list_projects(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    query = db.query(Project).filter(Project.status != "ARCHIVED")
+    if not has_global_access(current_user):
+        member_of = db.query(ProjectMember.project_id).filter(ProjectMember.user_id == current_user.id)
+        query = query.filter(Project.id.in_(member_of))
+    projects = query.order_by(Project.created_at.asc(), Project.id.asc()).all()  # the main project first, newer ones after
     results = []
 
     for p in projects:
@@ -191,7 +201,7 @@ def update_project(
     id: int,
     project_update: ProjectUpdate,
     db: Session = Depends(get_db),
-    current_user: Optional[User] = Depends(get_current_user_optional)
+    current_user: User = Depends(get_current_user)
 ):
     project = db.query(Project).filter(Project.id == id).first()
     if not project:
@@ -226,7 +236,7 @@ def update_project(
 def delete_project(
     id: int,
     db: Session = Depends(get_db),
-    current_user: Optional[User] = Depends(get_current_user_optional)
+    current_user: User = Depends(get_current_user)
 ):
     project = db.query(Project).filter(Project.id == id).first()
     if not project:

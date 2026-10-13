@@ -1,6 +1,6 @@
 import datetime
 from sqlalchemy import (
-    Column, Integer, String, Float, Boolean, DateTime, Date, Text, ForeignKey, Enum as SQLEnum, Index
+    Column, Integer, String, Float, Boolean, DateTime, Date, Text, ForeignKey, Enum as SQLEnum, Index, UniqueConstraint
 )
 from sqlalchemy.orm import relationship
 from backend.app.database.connection import Base
@@ -18,7 +18,7 @@ class User(Base):
 
     # Relationships
     progress_reports = relationship("DailyProgress", back_populates="reported_by")
-    blockers_reported = relationship("Blocker", back_populates="reported_by")
+    blockers_reported = relationship("Blocker", back_populates="reported_by", foreign_keys="Blocker.reported_by_user_id")
     audit_logs = relationship("AuditLog", back_populates="user")
 
 
@@ -41,6 +41,7 @@ class Project(Base):
     contractor = Column(String(255), nullable=True)
     description = Column(Text, nullable=True)
     stage_engineers_json = Column(Text, nullable=True) # JSON dictionary of stage -> list of site engineers
+    cover_image_url = Column(String(500), nullable=True)  # e.g. /projects/41-zoy-plus.jpg (files live in frontend/public/projects)
     status = Column(String(50), default="PLANNING") # PLANNING, IN_PROGRESS, ON_HOLD, COMPLETED
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
@@ -301,9 +302,25 @@ class Blocker(Base):
     reported_by_user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
 
+    # --- problem workflow: a reported problem is not a delay until the PM confirms its schedule impact ---
+    task_id = Column(Integer, ForeignKey("tasks.id", ondelete="SET NULL"), nullable=True)
+    owner = Column(String(255), nullable=True)  # person or team responsible for fixing it
+    impact_status = Column(String(20), default="NOT_ASSESSED", nullable=False)  # NOT_ASSESSED, PROPOSED, CONFIRMED, NO_IMPACT
+    proposed_delay_days = Column(Float, nullable=True)  # system estimate, working days held up on the activity
+    proposed_project_delay_days = Column(Float, nullable=True)  # system estimate of the slip to the project end
+    proposed_on_critical_path = Column(Boolean, nullable=True)
+    proposal_note = Column(Text, nullable=True)
+    proposed_at = Column(DateTime, nullable=True)
+    confirmed_delay_days = Column(Float, nullable=True)  # PM-confirmed: the only numbers delay reports use
+    confirmed_project_delay_days = Column(Float, nullable=True)
+    impact_note = Column(Text, nullable=True)
+    impact_decided_by_user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    impact_decided_at = Column(DateTime, nullable=True)
+    resolution_note = Column(Text, nullable=True)
+
     project = relationship("Project", back_populates="blockers")
     activity = relationship("Activity", back_populates="blockers")
-    reported_by = relationship("User", back_populates="blockers_reported")
+    reported_by = relationship("User", back_populates="blockers_reported", foreign_keys=[reported_by_user_id])
 
 
 class MLActivityFeatures(Base):
@@ -693,3 +710,135 @@ class GeotechAPIAuditLog(Base):
     created_at = Column(DateTime, default=datetime.datetime.utcnow, index=True)
 
     api_key_rel = relationship("GeotechAPIKey", back_populates="audit_logs")
+
+
+class ProjectMember(Base):
+    """Which users belong to which project, and which part of it (tower / wing) they may work in.
+
+    `scope` is "ALL" or an Activity.tower value such as "Tower A", "Tower B", "External / Infra".
+    A user needing two buildings gets two rows.
+    """
+    __tablename__ = "project_members"
+    __table_args__ = (
+        Index("ix_project_members_project_user", "project_id", "user_id"),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    project_id = Column(Integer, ForeignKey("projects.id", ondelete="CASCADE"), nullable=False)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    scope = Column(String(100), nullable=False, default="ALL")
+    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+
+    user = relationship("User")
+
+
+class Task(Base):
+    """Execution task: the work a site engineer actually organises, linked to one planned (baseline) activity.
+
+    A task never changes the baseline. Planned tasks point at an activity; unplanned tasks have no activity,
+    a reason and a tower, and need PM approval before they can start.
+    """
+    __tablename__ = "tasks"
+
+    id = Column(Integer, primary_key=True, index=True)
+    project_id = Column(Integer, ForeignKey("projects.id", ondelete="CASCADE"), nullable=False, index=True)
+    activity_id = Column(Integer, ForeignKey("activities.id", ondelete="SET NULL"), nullable=True, index=True)
+    tower = Column(String(100), nullable=False)  # copied from the activity, or chosen for unplanned work
+    title = Column(String(255), nullable=False)
+    description = Column(Text, nullable=True)
+    is_unplanned = Column(Boolean, default=False, nullable=False)
+    unplanned_reason = Column(Text, nullable=True)
+    status = Column(String(30), default="DRAFT", nullable=False, index=True)
+    planned_days = Column(Integer, default=1, nullable=False)
+    progress_percent = Column(Float, default=0.0, nullable=False)
+    assigned_to = Column(String(255), nullable=True)  # free text for now (worker or crew name)
+    actual_start_date = Column(Date, nullable=True)
+    actual_end_date = Column(Date, nullable=True)
+    created_by_user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    decided_by_user_id = Column(Integer, ForeignKey("users.id"), nullable=True)  # PM who approved / rejected
+    decided_at = Column(DateTime, nullable=True)
+    rejection_reason = Column(Text, nullable=True)
+    blocked_note = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
+
+    activity = relationship("Activity")
+
+
+class ReadinessTemplate(Base):
+    """A readiness check that applies to one type of work (e.g. every slab pour). Configured by planning / quality."""
+    __tablename__ = "readiness_templates"
+    __table_args__ = (Index("ix_readiness_templates_work_type", "work_type"),)
+
+    id = Column(Integer, primary_key=True, index=True)
+    work_type = Column(String(100), nullable=False)
+    name = Column(String(255), nullable=False)
+    description = Column(Text, nullable=True)
+    mandatory = Column(Boolean, default=True, nullable=False)
+    sort_order = Column(Integer, default=0, nullable=False)
+    active = Column(Boolean, default=True, nullable=False)
+    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+
+
+class TaskCheck(Base):
+    """One readiness check on one task. Copied from the template when the task is created, so later template
+    changes never alter checks already issued."""
+    __tablename__ = "task_checks"
+
+    id = Column(Integer, primary_key=True, index=True)
+    task_id = Column(Integer, ForeignKey("tasks.id", ondelete="CASCADE"), nullable=False, index=True)
+    name = Column(String(255), nullable=False)
+    description = Column(Text, nullable=True)
+    mandatory = Column(Boolean, default=True, nullable=False)
+    sort_order = Column(Integer, default=0, nullable=False)
+    passed = Column(Boolean, default=False, nullable=False)
+    checked_by_user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    checked_at = Column(DateTime, nullable=True)
+    note = Column(Text, nullable=True)
+    waived = Column(Boolean, default=False, nullable=False)  # PM exception for this task only
+    waived_by_user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    waiver_reason = Column(Text, nullable=True)
+
+
+class DailyChecklistItem(Base):
+    """One step of a role's daily checklist (the "Real Estate Bible"): the same list, in the same order, every day."""
+    __tablename__ = "daily_checklist_items"
+    __table_args__ = (Index("ix_daily_checklist_items_role", "role"),)
+
+    id = Column(Integer, primary_key=True, index=True)
+    role = Column(String(50), nullable=False)          # Site Engineer, Site Manager, Project Manager, Top Management
+    name = Column(String(255), nullable=False)
+    description = Column(Text, nullable=True)
+    sort_order = Column(Integer, default=0, nullable=False)
+    active = Column(Boolean, default=True, nullable=False)
+
+
+class DailyCheck(Base):
+    """A step of the daily checklist ticked by one person, for one project, on one day."""
+    __tablename__ = "daily_checks"
+    __table_args__ = (UniqueConstraint("user_id", "project_id", "item_id", "day", name="uq_daily_check"),)
+
+    id = Column(Integer, primary_key=True, index=True)
+    project_id = Column(Integer, ForeignKey("projects.id", ondelete="CASCADE"), nullable=False, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    item_id = Column(Integer, ForeignKey("daily_checklist_items.id", ondelete="CASCADE"), nullable=False)
+    day = Column(Date, nullable=False, index=True)
+    done_at = Column(DateTime, default=datetime.datetime.utcnow, nullable=False)
+    note = Column(Text, nullable=True)
+
+
+class Notification(Base):
+    """An in-app message for one person: something happened that they should know about or act on."""
+    __tablename__ = "notifications"
+    __table_args__ = (Index("ix_notifications_user_unread", "user_id", "read_at"),)
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    project_id = Column(Integer, ForeignKey("projects.id", ondelete="CASCADE"), nullable=True)
+    kind = Column(String(40), nullable=False)  # APPROVAL_NEEDED, TASK_APPROVED, TASK_REJECTED, PROBLEM_REPORTED, ...
+    title = Column(String(255), nullable=False)
+    body = Column(Text, nullable=True)
+    entity_type = Column(String(20), nullable=True)  # task, problem, activity
+    entity_id = Column(Integer, nullable=True)
+    created_at = Column(DateTime, default=datetime.datetime.utcnow, nullable=False)
+    read_at = Column(DateTime, nullable=True)
